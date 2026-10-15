@@ -7,11 +7,14 @@ import type { AddressInfo } from "node:net";
  * plus helpers to simulate the customer paying and Paystack sending webhooks.
  * The application's real HTTP client code talks to it over a socket.
  */
-type Tx = { id: number; reference: string; amount: number; currency: string; email: string; status: string; paid_at: string | null; refunded: number };
+type Tx = { id: number; reference: string; amount: number; currency: string; email: string; status: string; paid_at: string | null; refunded: number; callback_url?: string };
+
+/** `interactive` serves a local stand-in for Paystack's payment page (for clicking through checkout locally). */
+export type FakePaystackOptions = { secret?: string; interactive?: { webhookUrl: string } };
 type Fault = "network" | "server-error" | "reject" | "lost-response";
 
 export class FakePaystack {
-  readonly secret = `sk_test_${randomBytes(16).toString("hex")}`;
+  readonly secret: string;
   readonly transactions = new Map<string, Tx>();
   readonly refunds: { id: number; transaction: string; amount: number }[] = [];
   readonly calls: { method: string; path: string }[] = [];
@@ -20,9 +23,13 @@ export class FakePaystack {
   private nextId = 1000;
   baseUrl = "";
 
-  async start() {
+  constructor(private readonly options: FakePaystackOptions = {}) {
+    this.secret = options.secret ?? `sk_test_${randomBytes(16).toString("hex")}`;
+  }
+
+  async start(port = 0) {
     this.server = createServer((req, res) => void this.handle(req, res));
-    await new Promise<void>((resolve) => this.server!.listen(0, "127.0.0.1", resolve));
+    await new Promise<void>((resolve) => this.server!.listen(port, "127.0.0.1", resolve));
     this.baseUrl = `http://127.0.0.1:${(this.server!.address() as AddressInfo).port}`;
     return this;
   }
@@ -85,7 +92,9 @@ export class FakePaystack {
     this.calls.push({ method: req.method ?? "", path });
     const chunks: Buffer[] = [];
     for await (const chunk of req) chunks.push(chunk as Buffer);
-    const body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString("utf8")) : {};
+    const raw = Buffer.concat(chunks).toString("utf8");
+    if (this.options.interactive && path.startsWith("/pay/")) return this.payPage(req.method ?? "GET", path, res);
+    const body = raw ? JSON.parse(raw) : {};
 
     if (req.headers.authorization !== `Bearer ${this.secret}`) return this.send(res, 401, { status: false, message: "Invalid key" });
 
@@ -100,9 +109,10 @@ export class FakePaystack {
       if (this.transactions.has(body.reference)) {
         status = 400; payload = { status: false, message: "Duplicate Transaction Reference" };
       } else {
-        const tx: Tx = { id: this.nextId++, reference: body.reference, amount: Number(body.amount), currency: body.currency, email: body.email, status: "abandoned", paid_at: null, refunded: 0 };
+        const tx: Tx = { id: this.nextId++, reference: body.reference, amount: Number(body.amount), currency: body.currency, email: body.email, status: "abandoned", paid_at: null, refunded: 0, callback_url: body.callback_url };
         this.transactions.set(tx.reference, tx);
-        payload = { status: true, message: "Authorization URL created", data: { authorization_url: `https://checkout.paystack.test/${tx.id}`, access_code: `ac_${tx.id}`, reference: tx.reference } };
+        const url = this.options.interactive ? `${this.baseUrl}/pay/${tx.reference}` : `https://checkout.paystack.test/${tx.id}`;
+        payload = { status: true, message: "Authorization URL created", data: { authorization_url: url, access_code: `ac_${tx.id}`, reference: tx.reference } };
       }
     } else if (req.method === "GET" && path.startsWith("/transaction/verify/")) {
       const tx = this.transactions.get(decodeURIComponent(path.slice("/transaction/verify/".length)));
@@ -125,5 +135,31 @@ export class FakePaystack {
 
     if (fault === "lost-response") return req.socket.destroy(); // the request took effect; the caller never hears back
     this.send(res, status, payload);
+  }
+
+  /** Local stand-in for Paystack's hosted payment page. Never used against real Paystack. */
+  private async payPage(method: string, path: string, res: ServerResponse) {
+    const [, , reference, action] = path.split("?")[0].split("/");
+    const tx = this.transactions.get(decodeURIComponent(reference ?? ""));
+    if (!tx) return this.send(res, 404, { status: false, message: "Unknown payment" });
+    if (method === "POST" && (action === "success" || action === "decline")) {
+      if (action === "success") this.pay(tx.reference); else this.decline(tx.reference);
+      if (action === "success") {
+        const delivery = this.chargeSuccessWebhook(tx.reference);
+        await fetch(this.options.interactive!.webhookUrl, { method: "POST", headers: { "Content-Type": "application/json", "x-paystack-signature": delivery.signature }, body: delivery.body }).catch(() => undefined);
+      }
+      const back = new URL(tx.callback_url ?? "http://localhost:3000/checkout/complete");
+      back.searchParams.set("trxref", tx.reference);
+      back.searchParams.set("reference", tx.reference);
+      res.writeHead(303, { Location: back.toString() });
+      return res.end();
+    }
+    const amount = new Intl.NumberFormat("en-NG", { style: "currency", currency: tx.currency }).format(tx.amount / 100);
+    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+    res.end(`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Fake Paystack</title>
+<style>body{font-family:system-ui;background:#f3f4f6;display:grid;place-items:center;min-height:100vh;margin:0}main{background:#fff;padding:32px;border-radius:16px;max-width:360px;width:100%;box-shadow:0 10px 30px #0001}button{width:100%;padding:14px;border-radius:10px;border:0;font-size:16px;margin-top:10px;cursor:pointer}.pay{background:#0ba4db;color:#fff}.no{background:#eee}</style></head>
+<body><main><p style="color:#b45309;font-weight:600">LOCAL TEST PAYMENT PAGE (not Paystack)</p><p>${tx.email}</p><h1>${amount}</h1>
+<form method="post" action="/pay/${tx.reference}/success"><button class="pay">Pay ${amount}</button></form>
+<form method="post" action="/pay/${tx.reference}/decline"><button class="no">Decline</button></form></main></body></html>`);
   }
 }

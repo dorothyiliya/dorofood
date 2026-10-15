@@ -2,7 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { getCronSecret } from "@/lib/env";
 import { errorResponse } from "@/lib/commerce/errors";
-import { runReconciliation } from "@/lib/commerce/jobs";
+import { runReconciliationJob } from "@/lib/admin/system";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -20,7 +20,7 @@ function authorised(request: Request) {
 async function run(request: Request) {
   try {
     if (!authorised(request)) return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
-    return NextResponse.json(await runReconciliation(), { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json(await runReconciliationJob("cron"), { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return errorResponse(error);
   }

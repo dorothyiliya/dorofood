@@ -12,9 +12,12 @@ See [PRODUCTION-AUDIT.md](PRODUCTION-AUDIT.md) for the full audit, the defect li
 - Export review gate, shipment creation with retry, dispatch with stock movement
 - Database CHECK constraints on stock and money
 
+- Admin control centre (`/admin`): staff auth with roles, dashboard, orders, payments, refunds, catalogue, inventory, markets and delivery, store settings, staff, audit log, system status
+- Storefront reads products, categories and settings from the database
+
 ## Not built
-- Storefront checkout form, persistent basket, and wiring the storefront to the database catalogue
-- Customer accounts; staff authentication, roles and admin screens (refund, export and shipping operations have no HTTP route)
+- Storefront checkout form and persistent basket
+- Customer accounts; two-factor authentication and SSO for staff
 - Rate limiting
 - Carrier integration (shipment creation fails closed)
 - Email and SMS notifications

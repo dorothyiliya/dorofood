@@ -3,7 +3,8 @@ import { createHash, randomBytes } from "node:crypto";
 import { z } from "zod";
 import type { Order, PaymentTransaction } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { assertCheckoutEnabled, getAppBaseUrl, getFulfilmentLocationCode, getPaymentWindowMinutes } from "@/lib/env";
+import { assertCheckoutEnabled, getAppBaseUrl } from "@/lib/env";
+import { getSettings, type Settings } from "@/lib/settings";
 import { InsufficientStockError, reserveInventory } from "@/lib/inventory";
 import { jsonSafe, lockOrder, recordAudit } from "@/lib/audit";
 import { CommerceError, isUniqueViolation } from "@/lib/commerce/errors";
@@ -81,6 +82,8 @@ function toResult(order: Order, payment: PaymentTransaction | null): CheckoutRes
  */
 export async function createCheckout(rawInput: unknown, idempotencyKey: string | null): Promise<CheckoutResult> {
   assertCheckoutEnabled();
+  const settings = await getSettings();
+  if (!settings["checkout.open"]) throw new CommerceError("CHECKOUT_CLOSED", 503, "The store is not taking orders right now.");
   if (!idempotencyKey || !IDEMPOTENCY_KEY.test(idempotencyKey)) {
     throw new CommerceError("IDEMPOTENCY_KEY_REQUIRED", 400, "Send a unique Idempotency-Key header (16-100 letters, digits, _ or -).");
   }
@@ -92,7 +95,7 @@ export async function createCheckout(rawInput: unknown, idempotencyKey: string |
   let order = await prisma.order.findUnique({ where: { checkoutIdempotencyKey: idempotencyKey } });
   if (!order) {
     try {
-      order = await createPendingOrder(input, idempotencyKey, hash);
+      order = await createPendingOrder(input, idempotencyKey, hash, settings);
     } catch (error) {
       if (!isUniqueViolation(error, "checkoutIdempotencyKey")) throw error;
       order = await prisma.order.findUniqueOrThrow({ where: { checkoutIdempotencyKey: idempotencyKey } });
@@ -104,15 +107,15 @@ export async function createCheckout(rawInput: unknown, idempotencyKey: string |
   return ensurePaymentSession(order.id, input.email);
 }
 
-async function createPendingOrder(input: CheckoutInput, idempotencyKey: string, hash: string): Promise<Order> {
+async function createPendingOrder(input: CheckoutInput, idempotencyKey: string, hash: string, settings: Settings): Promise<Order> {
   for (let attempt = 0; ; attempt++) {
     try {
       return await prisma.$transaction(async (tx) => {
         const priced = await priceCart(tx, { marketCode: input.market, countryCode: input.shippingAddress.countryCode, items: input.items });
-        const location = await tx.inventoryLocation.findUnique({ where: { code: getFulfilmentLocationCode() } });
+        const location = await tx.inventoryLocation.findUnique({ where: { code: settings["fulfilment.locationCode"] } });
         if (!location?.active) throw new CommerceError("FULFILMENT_UNAVAILABLE", 503, "We cannot fulfil orders right now.");
 
-        const paymentExpiresAt = new Date(Date.now() + getPaymentWindowMinutes() * 60_000);
+        const paymentExpiresAt = new Date(Date.now() + settings["checkout.paymentWindowMinutes"] * 60_000);
         const order = await tx.order.create({
           data: {
             orderNumber: newOrderNumber(),

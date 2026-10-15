@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getFulfilmentLocationCode, isDatabaseConfigured } from "@/lib/env";
+import { isDatabaseConfigured } from "@/lib/env";
+import { getSetting } from "@/lib/settings";
 import { errorResponse } from "@/lib/commerce/errors";
 import { marketCodeSchema } from "@/lib/commerce/pricing";
 
@@ -13,7 +14,7 @@ export async function GET(request: Request) {
   }
   try {
     const { searchParams } = new URL(request.url);
-    const market = marketCodeSchema.safeParse((searchParams.get("market") || "NG").toUpperCase());
+    const market = marketCodeSchema.safeParse(searchParams.get("market") || "NG");
     if (!market.success) return NextResponse.json({ error: "Unknown market.", code: "INVALID_MARKET" }, { status: 400 });
     const query = (searchParams.get("q") || "").trim().slice(0, 100);
     const category = (searchParams.get("category") || "").trim().toLowerCase();
@@ -25,6 +26,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ data: [], meta: { count: 0, market: market.data, available: false } });
     }
 
+    const locationCode = await getSetting("fulfilment.locationCode");
     const rows = await prisma.marketProduct.findMany({
       where: {
         marketId: marketRow.id,
@@ -42,7 +44,7 @@ export async function GET(request: Request) {
         variant: {
           include: {
             product: { include: { category: true } },
-            balances: { where: { location: { code: getFulfilmentLocationCode() } } },
+            balances: { where: { location: { code: locationCode } } },
           },
         },
       },

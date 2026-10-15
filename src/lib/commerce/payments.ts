@@ -57,6 +57,7 @@ export async function applyVerifiedPayment(verified: VerifiedPayment): Promise<{
       where: { id: payment.id },
       data: {
         status: "SUCCEEDED", rawStatus: verified.rawStatus, verifiedAt: new Date(), paidAt: verified.paidAt,
+        receivedAmountMinor: verified.amountMinor, receivedCurrency: verified.currency,
         providerTransactionId: verified.providerTransactionId,
         failureReason: amountMatches ? null : `AMOUNT_MISMATCH: received ${verified.amountMinor} ${verified.currency}, expected ${payment.amountMinor} ${payment.currency}`,
       },
@@ -109,7 +110,7 @@ export async function applyVerifiedPayment(verified: VerifiedPayment): Promise<{
  * reservation already expired. All-or-nothing: if any line cannot be covered,
  * everything allocated for the order is returned to stock.
  */
-async function allocateStockForPaidOrder(
+export async function allocateStockForPaidOrder(
   tx: Prisma.TransactionClient,
   order: Prisma.OrderGetPayload<{ include: { items: true; reservations: true } }>,
 ) {

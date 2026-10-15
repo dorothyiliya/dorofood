@@ -8,3 +8,6 @@ next-env.d.ts
 !.env.example
 .DS_Store
 coverage/
+
+# Design reference skills (not app code, not served)
+design-skills/

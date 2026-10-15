@@ -49,8 +49,15 @@ export function assertCheckoutEnabled(): void {
   getAppBaseUrl();
 }
 
+/**
+ * Public origin used for Paystack return URLs. Explicit APP_BASE_URL wins; on
+ * Vercel, preview deployments fall back to their own branch/deployment URL.
+ */
 export function getAppBaseUrl(): string {
-  const raw = process.env.APP_BASE_URL?.trim();
+  const raw = process.env.APP_BASE_URL?.trim()
+    || (process.env.VERCEL_ENV === "production" && process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "")
+    || (process.env.VERCEL_BRANCH_URL ? `https://${process.env.VERCEL_BRANCH_URL}` : "")
+    || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "");
   if (!raw) throw new ConfigError("APP_BASE_URL_NOT_CONFIGURED", "APP_BASE_URL is required to build payment callback URLs.");
   return raw.replace(/\/+$/, "");
 }
@@ -65,11 +72,3 @@ export function isDatabaseConfigured(): boolean {
   return Boolean(process.env.DATABASE_URL);
 }
 
-export function getFulfilmentLocationCode(): string {
-  return process.env.FULFILMENT_LOCATION_CODE?.trim() || "NG-MAIN";
-}
-
-export function getPaymentWindowMinutes(): number {
-  const minutes = Number(process.env.PAYMENT_WINDOW_MINUTES || 30);
-  return Number.isInteger(minutes) && minutes >= 5 && minutes <= 24 * 60 ? minutes : 30;
-}

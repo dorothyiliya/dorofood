@@ -46,6 +46,7 @@ export type Fixture = Awaited<ReturnType<typeof seedFixture>>;
  * NG delivery N1,500 flat; GB delivery GBP 12.00 flat.
  */
 export async function seedFixture({ crispsStock = 10, teaStock = 10 } = {}) {
+  await prisma.storeSetting.create({ data: { key: "checkout.open", value: true } });
   const ng = await prisma.market.create({ data: { code: "NG", name: "Nigeria", countryCode: "NG", currency: "NGN", status: "ACTIVE" } });
   const gb = await prisma.market.create({ data: { code: "GB", name: "United Kingdom", countryCode: "GB", currency: "GBP", status: "ACTIVE" } });
   const location = await prisma.inventoryLocation.create({ data: { code: "NG-MAIN", name: "Main", addressJson: {} } });

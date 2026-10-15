@@ -3,13 +3,14 @@ import type { NextConfig } from "next";
 const isDev = process.env.NODE_ENV !== "production";
 
 // 'unsafe-inline' scripts are needed for Next's inline bootstrap without a nonce
-// middleware; everything else is locked to this origin plus Google Fonts.
+// middleware. Fonts are self-hosted by next/font. Product photos may come from any
+// https host because staff add them by URL in the admin.
 const contentSecurityPolicy = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  "font-src 'self' https://fonts.gstatic.com",
-  "img-src 'self' data:",
+  "style-src 'self' 'unsafe-inline'",
+  "font-src 'self'",
+  "img-src 'self' data: https:",
   `connect-src 'self'${isDev ? " ws:" : ""}`,
   "frame-ancestors 'none'",
   "base-uri 'self'",
@@ -29,6 +30,7 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
+  experimental: { optimizePackageImports: ["@phosphor-icons/react"] },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

@@ -3,7 +3,8 @@ import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 import { CommerceError } from "@/lib/commerce/errors";
 
-export const marketCodeSchema = z.enum(["NG", "GB", "US", "CA", "OTHER"]);
+/** Markets are managed in the admin; the code only has to look like one. Existence is checked against the database. */
+export const marketCodeSchema = z.string().trim().toUpperCase().regex(/^[A-Z]{2,8}$/, "Unknown market.");
 export const countryCodeSchema = z.string().trim().regex(/^[A-Za-z]{2}$/, "Use a two-letter ISO country code.").transform((v) => v.toUpperCase());
 export const cartItemsSchema = z.array(z.object({
   variantId: z.string().trim().min(1).max(64),

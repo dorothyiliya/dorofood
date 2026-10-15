@@ -18,11 +18,13 @@
     "db:test:up": "docker run -d --name dorocity-pg -e POSTGRES_USER=dorocity -e POSTGRES_PASSWORD=dorocity_local_only -e POSTGRES_DB=dorocity -p 127.0.0.1:54329:5432 postgres:16-alpine",
     "db:deploy": "prisma migrate deploy",
     "check": "npm run typecheck && npm run lint && npm run test:all && npm run build",
-    "test:smoke": "tsx scripts/smoke-e2e.ts"
+    "test:smoke": "tsx scripts/smoke-e2e.ts",
+    "admin:create": "tsx --conditions=react-server scripts/admin-create.ts",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@phosphor-icons/react": "^2.1.10",
     "@prisma/client": "^6.16.2",
-    "lucide-react": "^0.468.0",
     "next": "^15.5.3",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",

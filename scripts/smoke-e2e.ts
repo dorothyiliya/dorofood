@@ -65,7 +65,9 @@ async function main() {
   await stopServer(server);
 
   // ---- Phase 2: configured against the fake Paystack. Walk the journey.
+  // What staff would do in the admin: set a delivery rate and open the store.
   await prisma.shippingRule.updateMany({ where: { countryCode: "NG" }, data: { enabled: true, flatRateMinor: BigInt(150000), providerCode: "SMOKE" } });
+  await prisma.storeSetting.upsert({ where: { key: "checkout.open" }, create: { key: "checkout.open", value: true }, update: { value: true } });
   const paystack = await new FakePaystack().start();
   server = await startServer({
     PAYSTACK_SECRET_KEY: paystack.secret, PAYSTACK_API_BASE_URL: paystack.baseUrl, CHECKOUT_ENABLED: "true",
@@ -74,7 +76,11 @@ async function main() {
   try {
     const home = await fetch(BASE);
     const html = await home.text();
-    check("storefront renders and is labelled as a preview", home.ok && html.includes("STORE PREVIEW"));
+    check("storefront renders and is labelled as a preview", home.ok && html.includes("Store preview. Online ordering opens soon."));
+    const adminAnon = await fetch(`${BASE}/admin/orders`, { redirect: "manual" });
+    check("admin requires sign-in", adminAnon.status === 307 && (adminAnon.headers.get("location") ?? "").includes("/admin/login"));
+    const adminForged = await fetch(`${BASE}/admin`, { redirect: "manual", headers: { cookie: "dfa_session=forged-token" } });
+    check("forged admin session rejected", adminForged.status === 307 && (adminForged.headers.get("location") ?? "").includes("/admin/login"));
     check("security headers present", Boolean(home.headers.get("content-security-policy")?.includes("frame-ancestors 'none'") && home.headers.get("x-content-type-options") === "nosniff" && home.headers.get("strict-transport-security")));
 
     const quote = await (await post("/api/v1/checkout/quotes", { market: "NG", countryCode: "NG", items: [{ variantId, quantity: 2 }] })).json();

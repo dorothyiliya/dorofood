@@ -10,6 +10,10 @@ import { createPaystackRefund, ProviderRejectedError } from "@/lib/payments/pays
 const REFUNDABLE_PAYMENT = ["SUCCEEDED", "PARTIALLY_REFUNDED", "REFUND_PENDING"] as const;
 const SHIPPED = ["DISPATCHED", "DELIVERED"];
 
+export function paidAmount(payment: { amountMinor: bigint; receivedAmountMinor: bigint | null }) {
+  return payment.receivedAmountMinor ?? payment.amountMinor;
+}
+
 /** Sum of refunds that have not definitively failed: these reduce what is still refundable. */
 async function committedRefundTotal(tx: Prisma.TransactionClient, paymentId: string) {
   const refunds = await tx.refund.findMany({ where: { paymentId, status: { not: "FAILED" } }, select: { amountMinor: true } });
@@ -39,13 +43,14 @@ export async function requestRefund(input: { orderId: string; amountMinor?: bigi
     const payment = await tx.paymentTransaction.findFirst({ where: { orderId: order.id, status: { in: [...REFUNDABLE_PAYMENT] } }, orderBy: { createdAt: "asc" } });
     if (!payment) throw new CommerceError("NO_REFUNDABLE_PAYMENT", 409, "This order has no verified payment to refund.");
 
-    const remaining = payment.amountMinor - (await committedRefundTotal(tx, payment.id));
+    // Refund what was actually charged, which can differ from the order total (payment review cases).
+    const remaining = paidAmount(payment) - (await committedRefundTotal(tx, payment.id));
     const amount = input.amountMinor ?? remaining;
     if (amount <= BigInt(0) || amount > remaining) {
       throw new CommerceError("REFUND_EXCEEDS_REMAINING", 422, "Refund amount exceeds what remains refundable.", { remainingMinor: remaining.toString() });
     }
     const created = await createRefundRecord(tx, {
-      paymentId: payment.id, amountMinor: amount, currency: payment.currency, reason: input.reason,
+      paymentId: payment.id, amountMinor: amount, currency: payment.receivedCurrency ?? payment.currency, reason: input.reason,
       idempotencyKey: input.idempotencyKey, requestedBy: input.actorId,
     });
 
@@ -117,25 +122,45 @@ export async function applyRefundEvent(eventType: string, data: RefundEventData)
 
   const target = eventType === "refund.processed" ? "REFUNDED" : eventType === "refund.failed" ? "FAILED" : null;
   if (!target) return "PROCESSED"; // pending / processing / needs-attention: informational only
+  await finaliseRefund(refund.id, target, { actorId: "system", failureReason: "Provider reported refund.failed" });
+  return "PROCESSED";
+}
 
-  const refundId = refund.id;
-  await prisma.$transaction(async (tx) => {
+/**
+ * Moves a pending refund to its final state (from a webhook, or from staff after
+ * reconciling it in the Paystack dashboard) and settles payment/order status.
+ * Returns false if the refund was already final.
+ */
+export async function finaliseRefund(
+  refundId: string,
+  target: "REFUNDED" | "FAILED",
+  options: { actorId: string; failureReason?: string; providerRef?: string; providerCallState?: "SENT" | "REJECTED"; note?: string },
+) {
+  return prisma.$transaction(async (tx) => {
     const payment = await tx.paymentTransaction.findFirstOrThrow({ where: { refunds: { some: { id: refundId } } } });
     await lockOrder(tx, payment.orderId);
-    const moved = await tx.refund.updateMany({ where: { id: refundId, status: "REFUND_PENDING" }, data: { status: target, ...(target === "FAILED" ? { failureReason: "Provider reported refund.failed" } : {}) } });
-    if (moved.count !== 1) return;
-    await recordAudit(tx, { action: target === "REFUNDED" ? "REFUND_PROCESSED" : "REFUND_FAILED", entityType: "Refund", entityId: refundId });
-    if (target !== "REFUNDED") return;
+    const moved = await tx.refund.updateMany({
+      where: { id: refundId, status: "REFUND_PENDING" },
+      data: {
+        status: target,
+        ...(target === "FAILED" ? { failureReason: options.failureReason ?? "Refund failed" } : {}),
+        ...(options.providerRef ? { providerRef: options.providerRef } : {}),
+        ...(options.providerCallState ? { providerCallState: options.providerCallState } : {}),
+      },
+    });
+    if (moved.count !== 1) return false;
+    await recordAudit(tx, { action: target === "REFUNDED" ? "REFUND_PROCESSED" : "REFUND_FAILED", entityType: "Refund", entityId: refundId, actorId: options.actorId, metadata: options.note ? { note: options.note } : undefined });
+    if (target !== "REFUNDED") return true;
 
     const processed = await tx.refund.findMany({ where: { paymentId: payment.id, status: "REFUNDED" }, select: { amountMinor: true } });
     const refunded = processed.reduce((s, r) => s + r.amountMinor, BigInt(0));
-    const full = refunded >= payment.amountMinor;
+    const full = refunded >= paidAmount(payment);
     await tx.paymentTransaction.update({ where: { id: payment.id }, data: { status: full ? "REFUNDED" : "PARTIALLY_REFUNDED" } });
     if (full) {
       // A duplicate charge being refunded must not change the status of the order it duplicated.
       const order = await tx.order.findUniqueOrThrow({ where: { id: payment.orderId } });
       if (order.status === "REFUND_PENDING") await tx.order.update({ where: { id: order.id }, data: { status: "REFUNDED" } });
     }
+    return true;
   });
-  return "PROCESSED";
 }
