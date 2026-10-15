@@ -2,6 +2,8 @@
 
 import { startTransition, useActionState, useEffect, useId, useState, type FormEvent, type ReactNode } from "react";
 import type { ActionState } from "@/lib/admin/action";
+import { rebase } from "@/lib/admin/paths";
+import { useAdminBase } from "@/app/admin/_components/admin-link";
 
 type Action = (state: ActionState, form: FormData) => Promise<ActionState>;
 
@@ -35,10 +37,13 @@ export function ActionForm({ action, submitLabel, children, variant = "primary",
   const [state, formAction, pending] = useActionState(action, null);
   const [version, setVersion] = useState(0);
   const messageId = useId();
+  const base = useAdminBase();
 
   useEffect(() => {
-    if (state?.ok) setVersion((v) => v + 1);
-  }, [state]);
+    // A full navigation goes through the middleware, which maps paths for the admin host.
+    if (state?.redirectTo) window.location.assign(rebase(state.redirectTo, base));
+    else if (state?.ok) setVersion((v) => v + 1);
+  }, [state, base]);
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

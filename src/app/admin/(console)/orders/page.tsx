@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { AdminLink as Link } from "@/app/admin/_components/admin-link";
 import type { OrderStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { Card, DateTime, Money, PageHeader, Pagination, StatusBadge, Table, inputClass, pageParam, stringParam, td, humanise } from "@/app/admin/_components/ui";

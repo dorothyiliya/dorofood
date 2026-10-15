@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { AdminLink as Link } from "@/app/admin/_components/admin-link";
 import type { ReactNode } from "react";
 import { CheckCircle, Circle, Clock, Warning, XCircle } from "@phosphor-icons/react/dist/ssr";
 import { formatMoney } from "@/lib/money";

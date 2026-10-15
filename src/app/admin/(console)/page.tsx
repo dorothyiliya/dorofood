@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { AdminLink as Link } from "@/app/admin/_components/admin-link";
 import { dashboardData } from "@/lib/admin/dashboard";
 import { systemStatus } from "@/lib/admin/system";
 import { formatMoney } from "@/lib/money";

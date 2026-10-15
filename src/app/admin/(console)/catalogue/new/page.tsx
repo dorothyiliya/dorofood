@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { AdminLink as Link } from "@/app/admin/_components/admin-link";
 import { prisma } from "@/lib/prisma";
 import { requireStaffPage } from "@/lib/admin/session";
 import { can } from "@/lib/admin/auth";

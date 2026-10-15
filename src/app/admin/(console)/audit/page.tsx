@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { AdminLink as Link } from "@/app/admin/_components/admin-link";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { Card, DateTime, PageHeader, Pagination, Table, humanise, inputClass, pageParam, stringParam, td } from "@/app/admin/_components/ui";

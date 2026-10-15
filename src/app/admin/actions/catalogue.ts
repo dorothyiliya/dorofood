@@ -1,6 +1,5 @@
 "use server";
 
-import { redirect } from "next/navigation";
 import { adminAction, type ActionState } from "@/lib/admin/action";
 import { checkbox, id, int, money, oneOf, optionalInt, optionalMoney, text } from "@/lib/admin/form";
 import { addProductImage, makePrimaryImage, removeProductImage, saveCategory, saveMarketPrice, saveProduct, saveVariant } from "@/lib/admin/catalogue";
@@ -20,13 +19,10 @@ function productInput(form: FormData) {
 }
 
 export async function createProductAction(_: ActionState, form: FormData) {
-  let created: string | null = null;
-  const state = await adminAction("catalogue.manage", async (staff) => {
-    created = (await saveProduct(null, productInput(form), staff.id)).id;
-    return "Product created.";
+  return adminAction("catalogue.manage", async (staff) => {
+    const created = await saveProduct(null, productInput(form), staff.id);
+    return { message: "Product created.", redirectTo: `/admin/catalogue/${created.id}` };
   }, { storefront: true });
-  if (created) redirect(`/admin/catalogue/${created}`);
-  return state;
 }
 
 export async function updateProductAction(_: ActionState, form: FormData) {

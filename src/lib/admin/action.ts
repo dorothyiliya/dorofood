@@ -5,10 +5,17 @@ import { ZodError } from "zod";
 import { ConfigError } from "@/lib/env";
 import { CommerceError } from "@/lib/commerce/errors";
 import { ProviderRejectedError, ProviderUnavailableError } from "@/lib/payments/paystack";
-import { requireStaff } from "@/lib/admin/session";
+import { requireStaff, SessionExpiredError } from "@/lib/admin/session";
 import type { Permission, SessionStaff } from "@/lib/admin/auth";
 
-export type ActionState = { ok: boolean; message: string; at: number } | null;
+/**
+ * `redirectTo` is an internal "/admin/..." path the form navigates to in the
+ * browser. Server-side redirects from actions are avoided on purpose: Next.js
+ * renders an action's redirect target internally, bypassing the middleware that
+ * maps the admin host's clean paths, so the browser must do the navigation.
+ */
+export type ActionState = { ok: boolean; message: string; at: number; redirectTo?: string } | null;
+export type ActionResult = string | { message: string; redirectTo?: string };
 
 /**
  * Wraps every admin mutation: re-authenticates, checks the permission, and turns
@@ -17,17 +24,18 @@ export type ActionState = { ok: boolean; message: string; at: number } | null;
  */
 export async function adminAction(
   permission: Permission,
-  fn: (staff: SessionStaff) => Promise<string>,
+  fn: (staff: SessionStaff) => Promise<ActionResult>,
   options: { storefront?: boolean } = {},
 ): Promise<ActionState> {
   try {
     const staff = await requireStaff(permission);
-    const message = await fn(staff);
+    const result = await fn(staff);
     revalidatePath("/admin", "layout");
     if (options.storefront) revalidatePath("/");
-    return { ok: true, message, at: Date.now() };
+    return typeof result === "string" ? { ok: true, message: result, at: Date.now() } : { ok: true, ...result, at: Date.now() };
   } catch (error) {
     unstable_rethrow(error);
+    if (error instanceof SessionExpiredError) return { ok: false, message: "Your session has ended. Please sign in again.", at: Date.now(), redirectTo: "/admin/login" };
     return { ok: false, message: describe(error), at: Date.now() };
   }
 }

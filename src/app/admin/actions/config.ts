@@ -1,6 +1,5 @@
 "use server";
 
-import { redirect } from "next/navigation";
 import { adminAction, type ActionState } from "@/lib/admin/action";
 import { checkbox, id, int, oneOf, optionalInt, optionalMoney, text } from "@/lib/admin/form";
 import { ADJUSTMENT_REASONS, changeStock, saveLocation } from "@/lib/admin/stock";
@@ -98,15 +97,9 @@ export async function resetPasswordAction(_: ActionState, form: FormData) {
 }
 
 export async function changeOwnPasswordAction(_: ActionState, form: FormData) {
-  let changed = false;
-  const state = await adminAction("view", async (staff) => {
+  return adminAction("view", async (staff) => {
     await changeOwnPassword(staff, String(form.get("current") ?? ""), String(form.get("next") ?? ""));
-    changed = true;
-    return "Password changed.";
-  });
-  if (changed) {
     await clearSessionCookie();
-    redirect("/admin/login");
-  }
-  return state;
+    return { message: "Password changed. Sign in with your new password.", redirectTo: "/admin/login" };
+  });
 }
