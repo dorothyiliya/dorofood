@@ -1,0 +1,570 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RecordStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum MarketStatus {
+  ACTIVE
+  PAUSED
+}
+
+enum InventoryReservationStatus {
+  ACTIVE
+  COMMITTED
+  RELEASED
+  EXPIRED
+  FULFILLED
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAYMENT_REVIEW
+  CONFIRMED
+  PROCESSING
+  READY_TO_DISPATCH
+  DISPATCHED
+  DELIVERED
+  CANCELLED
+  REFUND_PENDING
+  REFUNDED
+}
+
+enum PaymentStatus {
+  INITIATED
+  PENDING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+  REFUND_PENDING
+  PARTIALLY_REFUNDED
+  REFUNDED
+}
+
+enum ShipmentStatus {
+  QUOTE_PENDING
+  CREATING
+  READY
+  PACKED
+  DISPATCHED
+  IN_TRANSIT
+  CUSTOMS_HOLD
+  DELIVERED
+  FAILED
+  RETURNED
+  CANCELLED
+}
+
+enum ExportStatus {
+  NOT_REQUIRED
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  DOCUMENTS_PENDING
+  CLEARED
+}
+
+enum PaymentEventStatus {
+  RECEIVED
+  PROCESSED
+  IGNORED
+  FAILED
+}
+
+enum ProviderCallState {
+  NOT_SENT
+  SENDING
+  SENT
+  REJECTED
+  UNKNOWN
+}
+
+enum StockMovementReason {
+  RECEIPT
+  RESERVATION_RELEASE
+  DISPATCH
+  SALE_RETURN
+  DAMAGE
+  WRITE_OFF
+  STOCKTAKE
+  CORRECTION
+  RECALL
+}
+
+model Product {
+  id            String             @id @default(cuid())
+  slug          String             @unique
+  name          String
+  description   String             @db.Text
+  brand         String?
+  originCountry String             @default("NG")
+  status        RecordStatus       @default(DRAFT)
+  categoryId    String?
+  category      Category?          @relation(fields: [categoryId], references: [id])
+  media         ProductMedia[]
+  attributes    ProductAttribute[]
+  variants      ProductVariant[]
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@index([status, categoryId])
+}
+
+model Category {
+  id        String       @id @default(cuid())
+  name      String
+  slug      String       @unique
+  parentId  String?
+  parent    Category?    @relation("CategoryTree", fields: [parentId], references: [id])
+  children  Category[]   @relation("CategoryTree")
+  products  Product[]
+  sortOrder Int          @default(0)
+  status    RecordStatus @default(ACTIVE)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+}
+
+model ProductVariant {
+  id             String                 @id @default(cuid())
+  productId      String
+  product        Product                @relation(fields: [productId], references: [id], onDelete: Restrict)
+  sku            String                 @unique
+  barcode        String?                @unique
+  name           String?
+  packSize       String
+  weightGrams    Int?
+  lengthMm       Int?
+  widthMm        Int?
+  heightMm       Int?
+  status         RecordStatus           @default(DRAFT)
+  balances       InventoryBalance[]
+  reservations   InventoryReservation[]
+  batches        InventoryBatch[]
+  marketProducts MarketProduct[]
+  orderItems     OrderItem[]
+  movements      InventoryMovement[]
+  cartItems      CartItem[]
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  @@index([productId, status])
+}
+
+model ProductMedia {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String
+  altText   String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+model ProductAttribute {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  key       String
+  value     String  @db.Text
+
+  @@unique([productId, key])
+}
+
+model Market {
+  id             String          @id @default(cuid())
+  code           String          @unique
+  name           String
+  countryCode    String
+  currency       String
+  status         MarketStatus    @default(PAUSED)
+  marketProducts MarketProduct[]
+  orders         Order[]
+  shippingRules  ShippingRule[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+}
+
+model MarketProduct {
+  id               String         @id @default(cuid())
+  marketId         String
+  market           Market         @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  variantId        String
+  variant          ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  priceMinor       BigInt
+  compareAtMinor   BigInt?
+  currency         String
+  exportEligible   Boolean        @default(false)
+  minShelfLifeDays Int?
+  restrictionNotes String?        @db.Text
+  status           RecordStatus   @default(DRAFT)
+
+  @@unique([marketId, variantId])
+  @@index([marketId, status])
+}
+
+model InventoryLocation {
+  id           String                 @id @default(cuid())
+  code         String                 @unique
+  name         String
+  addressJson  Json
+  active       Boolean                @default(true)
+  balances     InventoryBalance[]
+  reservations InventoryReservation[]
+  batches      InventoryBatch[]
+  movements    InventoryMovement[]
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+}
+
+model InventoryBalance {
+  id               String            @id @default(cuid())
+  variantId        String
+  variant          ProductVariant    @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  locationId       String
+  location         InventoryLocation @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  quantityOnHand   Int               @default(0)
+  reservedQuantity Int               @default(0)
+  updatedAt        DateTime          @updatedAt
+
+  @@unique([variantId, locationId])
+  @@index([locationId])
+}
+
+model InventoryBatch {
+  id                String            @id @default(cuid())
+  variantId         String
+  variant           ProductVariant    @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  locationId        String
+  location          InventoryLocation @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  batchCode         String
+  receivedAt        DateTime          @default(now())
+  expiryDate        DateTime?
+  quantityReceived  Int
+  quantityRemaining Int
+  quarantined       Boolean           @default(false)
+  supplierRef       String?
+  createdAt         DateTime          @default(now())
+
+  @@unique([variantId, locationId, batchCode])
+  @@index([expiryDate, quarantined])
+}
+
+model InventoryReservation {
+  id         String                     @id @default(cuid())
+  variantId  String
+  variant    ProductVariant             @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  locationId String
+  location   InventoryLocation          @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  orderId    String?
+  order      Order?                     @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  quantity   Int
+  status     InventoryReservationStatus @default(ACTIVE)
+  expiresAt  DateTime
+  createdAt  DateTime                   @default(now())
+  updatedAt  DateTime                   @updatedAt
+
+  @@index([status, expiresAt])
+  @@index([orderId])
+}
+
+model InventoryMovement {
+  id            String              @id @default(cuid())
+  variantId     String
+  variant       ProductVariant      @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  locationId    String
+  location      InventoryLocation   @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  quantityDelta Int
+  reason        StockMovementReason
+  reference     String?
+  note          String?             @db.Text
+  actorId       String?
+  createdAt     DateTime            @default(now())
+
+  @@index([variantId, locationId, createdAt])
+}
+
+model Customer {
+  id              String            @id @default(cuid())
+  email           String            @unique
+  name            String?
+  phone           String?
+  passwordHash    String?
+  emailVerifiedAt DateTime?
+  addresses       CustomerAddress[]
+  orders          Order[]
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+}
+
+model CustomerAddress {
+  id           String   @id @default(cuid())
+  customerId   String
+  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  label        String?
+  recipient    String
+  phone        String?
+  line1        String
+  line2        String?
+  city         String
+  region       String?
+  postalCode   String?
+  countryCode  String
+  deliveryNote String?  @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([customerId])
+}
+
+model Cart {
+  id         String     @id @default(cuid())
+  customerId String?
+  sessionKey String?    @unique
+  marketCode String
+  currency   String
+  status     String     @default("ACTIVE")
+  items      CartItem[]
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  @@index([customerId, status])
+}
+
+model CartItem {
+  id        String         @id @default(cuid())
+  cartId    String
+  cart      Cart           @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  variantId String
+  variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  quantity  Int
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@unique([cartId, variantId])
+}
+
+model Order {
+  id                     String                 @id @default(cuid())
+  orderNumber            String                 @unique
+  customerId             String?
+  customer               Customer?              @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  marketId               String
+  market                 Market                 @relation(fields: [marketId], references: [id], onDelete: Restrict)
+  email                  String
+  phone                  String?
+  currency               String
+  status                 OrderStatus            @default(PENDING_PAYMENT)
+  subtotalMinor          BigInt
+  discountMinor          BigInt                 @default(0)
+  shippingMinor          BigInt                 @default(0)
+  taxMinor               BigInt                 @default(0)
+  totalMinor             BigInt
+  shippingAddressJson    Json
+  billingAddressJson     Json?
+  customerNote           String?                @db.Text
+  destinationCountry     String
+  requiresExport         Boolean                @default(false)
+  paymentExpiresAt       DateTime
+  confirmedAt            DateTime?
+  cancelledAt            DateTime?
+  checkoutIdempotencyKey String?                @unique
+  checkoutRequestHash    String?
+  items                  OrderItem[]
+  reservations           InventoryReservation[]
+  payments               PaymentTransaction[]
+  shipments              Shipment[]
+  exportRecord           ExportRecord?
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+
+  @@index([status, createdAt])
+  @@index([status, paymentExpiresAt])
+  @@index([customerId, createdAt])
+}
+
+model OrderItem {
+  id                  String         @id @default(cuid())
+  orderId             String
+  order               Order          @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  variantId           String
+  variant             ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  productNameSnapshot String
+  skuSnapshot         String
+  packSizeSnapshot    String
+  quantity            Int
+  unitPriceMinor      BigInt
+  discountMinor       BigInt         @default(0)
+  taxMinor            BigInt         @default(0)
+  lineTotalMinor      BigInt
+  batchCodeSnapshot   String?
+  createdAt           DateTime       @default(now())
+
+  @@index([orderId])
+}
+
+model PaymentTransaction {
+  id                    String        @id @default(cuid())
+  orderId               String
+  order                 Order         @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  provider              String
+  providerReference     String        @unique
+  idempotencyKey        String        @unique
+  currency              String
+  amountMinor           BigInt
+  status                PaymentStatus @default(INITIATED)
+  authorizationUrl      String?
+  providerTransactionId String?
+  paidAt                DateTime?
+  verifiedAt            DateTime?
+  rawStatus             String?
+  failureReason         String?
+  metadataJson          Json?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  refunds               Refund[]
+
+  @@index([orderId, status])
+  @@index([status, createdAt])
+}
+
+/// Durable store of every signed provider notification. The unique payload hash
+/// makes retried and replayed deliveries no-ops.
+model PaymentEvent {
+  id          String             @id @default(cuid())
+  provider    String
+  eventType   String
+  payloadHash String
+  reference   String?
+  payloadJson Json
+  status      PaymentEventStatus @default(RECEIVED)
+  attempts    Int                @default(0)
+  lastError   String?            @db.Text
+  receivedAt  DateTime           @default(now())
+  processedAt DateTime?
+
+  @@unique([provider, payloadHash])
+  @@index([status, receivedAt])
+  @@index([reference])
+}
+
+model Refund {
+  id                String             @id @default(cuid())
+  paymentId         String
+  payment           PaymentTransaction @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  amountMinor       BigInt
+  currency          String
+  reason            String
+  status            PaymentStatus      @default(REFUND_PENDING)
+  idempotencyKey    String             @unique
+  providerCallState ProviderCallState  @default(NOT_SENT)
+  providerRef       String?            @unique
+  failureReason     String?            @db.Text
+  requestedBy       String?
+  approvedBy        String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  @@index([paymentId, status])
+  @@index([providerCallState])
+}
+
+model ShippingRule {
+  id             String   @id @default(cuid())
+  marketId       String
+  market         Market   @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  countryCode    String
+  regionCode     String?
+  providerCode   String
+  serviceCode    String?
+  enabled        Boolean  @default(false)
+  flatRateMinor  BigInt?
+  currency       String?
+  minOrderMinor  BigInt?
+  maxWeightGrams Int?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([marketId, countryCode, enabled])
+}
+
+model Shipment {
+  id                String         @id @default(cuid())
+  orderId           String
+  order             Order          @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  idempotencyKey    String         @unique
+  attempts          Int            @default(0)
+  failureReason     String?        @db.Text
+  providerCode      String?
+  serviceCode       String?
+  trackingNumber    String?
+  trackingUrl       String?
+  status            ShipmentStatus @default(QUOTE_PENDING)
+  destinationJson   Json
+  parcelWeightGrams Int?
+  shippingMinor     BigInt
+  currency          String
+  dispatchedAt      DateTime?
+  deliveredAt       DateTime?
+  providerMetadata  Json?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@index([status, createdAt])
+  @@index([trackingNumber])
+}
+
+model ExportRecord {
+  id                     String       @id @default(cuid())
+  orderId                String       @unique
+  order                  Order        @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  destinationCountry     String
+  status                 ExportStatus @default(PENDING_REVIEW)
+  productEligibilityJson Json
+  documentsJson          Json?
+  reviewedBy             String?
+  reviewedAt             DateTime?
+  rejectionReason        String?      @db.Text
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
+}
+
+model Promotion {
+  id         String    @id @default(cuid())
+  code       String?   @unique
+  name       String
+  type       String
+  value      Int
+  currency   String?
+  startsAt   DateTime?
+  endsAt     DateTime?
+  usageLimit Int?
+  usageCount Int       @default(0)
+  active     Boolean   @default(false)
+  rulesJson  Json?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+}
+
+model AuditEvent {
+  id         String   @id @default(cuid())
+  actorId    String?
+  action     String
+  entityType String
+  entityId   String
+  requestId  String?
+  metadata   Json?
+  ipHash     String?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId, createdAt])
+  @@index([actorId, createdAt])
+}
