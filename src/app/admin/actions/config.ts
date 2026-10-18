@@ -4,6 +4,7 @@ import { adminAction, type ActionState } from "@/lib/admin/action";
 import { checkbox, id, int, oneOf, optionalInt, optionalMoney, text } from "@/lib/admin/form";
 import { ADJUSTMENT_REASONS, changeStock, saveLocation } from "@/lib/admin/stock";
 import { saveMarket, saveShippingRule } from "@/lib/admin/markets";
+import { PAYMENT_PROVIDERS } from "@/lib/integrations/definitions";
 import { SETTINGS, SETTING_KEYS, updateSettings, type SettingKey } from "@/lib/settings";
 import { changeOwnPassword, createStaff, resetStaffPassword, updateStaff } from "@/lib/admin/staff";
 import { clearSessionCookie } from "@/lib/admin/session";
@@ -41,6 +42,7 @@ export async function saveMarketAction(_: ActionState, form: FormData) {
     await saveMarket(marketId, {
       code: text(form, "code", 8), name: text(form, "name", 80), countryCode: text(form, "countryCode", 2),
       currency: oneOf(form, "currency", ["NGN", "GBP", "USD", "CAD", "EUR"] as const), status: oneOf(form, "status", ["ACTIVE", "PAUSED"] as const),
+      paymentProvider: oneOf(form, "paymentProvider", PAYMENT_PROVIDERS),
     }, staff.id);
     return marketId ? "Market saved." : "Market created. Add a shipping rule and prices before it can sell.";
   }, { storefront: true });

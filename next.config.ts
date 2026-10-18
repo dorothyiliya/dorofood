@@ -30,7 +30,8 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
-  experimental: { optimizePackageImports: ["@phosphor-icons/react"] },
+  // Photo uploads go through a server action: 4 MB file plus form overhead (Vercel's request limit is 4.5 MB).
+  experimental: { optimizePackageImports: ["@phosphor-icons/react"], serverActions: { bodySizeLimit: "4.4mb" } },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

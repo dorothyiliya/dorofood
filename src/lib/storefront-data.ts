@@ -3,6 +3,7 @@ import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import { isDatabaseConfigured } from "@/lib/env";
 import { getSettings, SETTINGS } from "@/lib/settings";
+import { gatewayReady } from "@/lib/payments/gateway";
 import { categoryIcon, packFor, sampleProducts, slugify, summariseCategories, type CategorySummary, type Product } from "@/lib/catalogue";
 
 export type MarketSummary = { code: string; name: string; currency: string; countryCode: string; delivers: boolean; flatRateMinor: string | null };
@@ -45,10 +46,8 @@ function sample(settings: { announcement: string; contactEmail: string }): Store
 }
 
 /** True only when every switch for taking orders is on. Reveals no configuration detail. */
-function checkoutSwitchesOn(storeOpen: boolean) {
-  const key = process.env.PAYSTACK_SECRET_KEY ?? "";
-  const keyUsable = key.startsWith("sk_test_") || (key.startsWith("sk_live_") && process.env.PAYSTACK_ALLOW_LIVE_KEYS === "true");
-  return storeOpen && process.env.CHECKOUT_ENABLED === "true" && keyUsable;
+async function checkoutSwitchesOn(storeOpen: boolean, homeProvider: string) {
+  return storeOpen && process.env.CHECKOUT_ENABLED === "true" && (await gatewayReady(homeProvider));
 }
 
 /**
@@ -114,7 +113,7 @@ export const loadStorefront = cache(async function loadStorefront(): Promise<Sto
       homeMarket: HOME_MARKET,
       ...storeSettings,
       previewMode: settings["storefront.previewMode"],
-      checkoutLive: checkoutSwitchesOn(settings["checkout.open"]),
+      checkoutLive: await checkoutSwitchesOn(settings["checkout.open"], home?.paymentProvider ?? "paystack"),
       paymentWindowMinutes: settings["checkout.paymentWindowMinutes"],
       source: "database",
     };

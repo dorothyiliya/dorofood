@@ -128,7 +128,7 @@ export const productImageSchema = z.object({
   altText: z.string().trim().min(3, "Describe the photo for people using screen readers.").max(200),
 });
 
-/** Photos are stored by URL (no upload storage is configured). The first photo is the main one in the shop. */
+/** Photos are stored by URL (uploaded through Photo storage, or any https address). The first photo is the main one in the shop. */
 export async function addProductImage(productId: string, input: z.input<typeof productImageSchema>, actorId: string) {
   const data = productImageSchema.parse(input);
   return prisma.$transaction(async (tx) => {

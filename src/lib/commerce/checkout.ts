@@ -3,13 +3,15 @@ import { createHash, randomBytes } from "node:crypto";
 import { z } from "zod";
 import type { Order, PaymentTransaction } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { assertCheckoutEnabled, getAppBaseUrl } from "@/lib/env";
+import { assertCheckoutEnabled, ConfigError, getAppBaseUrl } from "@/lib/env";
 import { getSettings, type Settings } from "@/lib/settings";
 import { InsufficientStockError, reserveInventory } from "@/lib/inventory";
 import { jsonSafe, lockOrder, recordAudit } from "@/lib/audit";
 import { CommerceError, isUniqueViolation } from "@/lib/commerce/errors";
 import { cartItemsSchema, countryCodeSchema, marketCodeSchema, priceCart } from "@/lib/commerce/pricing";
-import { initializePaystackTransaction, ProviderRejectedError } from "@/lib/payments/paystack";
+import { getGateway } from "@/lib/payments/gateway";
+import { expireStaleOrders } from "@/lib/commerce/jobs";
+import { ProviderRejectedError } from "@/lib/payments/types";
 
 const optionalText = (max: number) => z.string().trim().max(max).optional().transform((v) => v || undefined);
 const phoneSchema = z.string().trim().regex(/^\+?[0-9 ()-]{7,20}$/, "Enter a valid phone number.");
@@ -92,6 +94,10 @@ export async function createCheckout(rawInput: unknown, idempotencyKey: string |
   const input = parsed.data;
   const hash = requestHash(input);
 
+  // Fail closed before reserving stock: the market's payment gateway must be ready.
+  const marketRow = await prisma.market.findUnique({ where: { code: input.market } });
+  if (marketRow) await getGateway(marketRow.paymentProvider, "new");
+
   let order = await prisma.order.findUnique({ where: { checkoutIdempotencyKey: idempotencyKey } });
   if (!order) {
     try {
@@ -108,6 +114,7 @@ export async function createCheckout(rawInput: unknown, idempotencyKey: string |
 }
 
 async function createPendingOrder(input: CheckoutInput, idempotencyKey: string, hash: string, settings: Settings): Promise<Order> {
+  let freedExpired = false;
   for (let attempt = 0; ; attempt++) {
     try {
       return await prisma.$transaction(async (tx) => {
@@ -174,6 +181,13 @@ async function createPendingOrder(input: CheckoutInput, idempotencyKey: string, 
       }, { maxWait: 20_000, timeout: 20_000 });
     } catch (error) {
       if (attempt < 3 && isUniqueViolation(error, "orderNumber")) continue;
+      // The scheduled job may run rarely (daily on Vercel Hobby), so abandoned checkouts can
+      // still hold stock after their window closed: release those now and retry once.
+      if (!freedExpired && error instanceof CommerceError && error.code === "OUT_OF_STOCK") {
+        freedExpired = true;
+        const { expired } = await expireStaleOrders({ limit: 20 }).catch(() => ({ expired: 0 }));
+        if (expired > 0) continue;
+      }
       throw error;
     }
   }
@@ -188,7 +202,7 @@ async function createPendingOrder(input: CheckoutInput, idempotencyKey: string, 
 async function ensurePaymentSession(orderId: string, email: string): Promise<CheckoutResult> {
   const claim = await prisma.$transaction(async (tx) => {
     await lockOrder(tx, orderId);
-    const order = await tx.order.findUniqueOrThrow({ where: { id: orderId } });
+    const order = await tx.order.findUniqueOrThrow({ where: { id: orderId }, include: { market: true } });
     const payments = await tx.paymentTransaction.findMany({ where: { orderId }, orderBy: { createdAt: "desc" } });
     if (order.status !== "PENDING_PAYMENT") return { order, payment: payments[0] ?? null, start: false };
     if (order.paymentExpiresAt.getTime() <= Date.now()) {
@@ -201,7 +215,7 @@ async function ensurePaymentSession(orderId: string, email: string): Promise<Che
     const payment = await tx.paymentTransaction.create({
       data: {
         orderId,
-        provider: "paystack",
+        provider: order.market.paymentProvider,
         providerReference: newPaymentReference(),
         idempotencyKey: `order:${orderId}:attempt:${payments.length + 1}`,
         currency: order.currency,
@@ -215,20 +229,25 @@ async function ensurePaymentSession(orderId: string, email: string): Promise<Che
 
   const payment = claim.payment;
   try {
-    const session = await initializePaystackTransaction({
+    const gateway = await getGateway(payment.provider, "new");
+    const session = await gateway.initialize({
       email,
       amountMinor: payment.amountMinor,
       currency: payment.currency,
       reference: payment.providerReference,
       callbackUrl: `${getAppBaseUrl()}/checkout/complete`,
-      metadata: { orderNumber: claim.order.orderNumber },
+      orderNumber: claim.order.orderNumber,
     });
     const updated = await prisma.paymentTransaction.update({
       where: { id: payment.id },
-      data: { status: "PENDING", authorizationUrl: session.authorizationUrl },
+      data: { status: "PENDING", authorizationUrl: session.authorizationUrl, ...(session.session ? { metadataJson: jsonSafe(session.session) } : {}) },
     });
     return toResult(claim.order, updated);
   } catch (error) {
+    if (error instanceof ConfigError) {
+      await prisma.paymentTransaction.updateMany({ where: { id: payment.id, status: "INITIATED" }, data: { status: "FAILED", failureReason: `gateway not configured: ${error.code}` } });
+      throw error;
+    }
     if (error instanceof ProviderRejectedError) {
       await prisma.paymentTransaction.updateMany({
         where: { id: payment.id, status: "INITIATED" },

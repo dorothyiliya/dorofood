@@ -1,6 +1,10 @@
 import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { getPaystackConfig } from "@/lib/env";
+import { ConfigError, isSafeApiBaseUrl } from "@/lib/env";
+import { getIntegration } from "@/lib/integrations/store";
+import { ProviderRejectedError, ProviderUnavailableError, type VerifiedPayment } from "@/lib/payments/types";
+
+export { ProviderRejectedError, ProviderUnavailableError, type VerifiedPayment } from "@/lib/payments/types";
 
 export function verifyPaystackWebhook(rawBody: string, signature: string, secret: string) {
   const expected = Buffer.from(createHmac("sha512", secret).update(rawBody).digest("hex"), "utf8");
@@ -8,40 +12,51 @@ export function verifyPaystackWebhook(rawBody: string, signature: string, secret
   return expected.length === received.length && timingSafeEqual(expected, received);
 }
 
-export type VerifiedPayment = {
-  reference: string;
-  amountMinor: bigint;
-  currency: string;
-  /** Normalised outcome. Only "success" may ever confirm an order. */
-  status: "success" | "failed" | "pending";
-  rawStatus: string;
-  providerTransactionId: string | null;
-  paidAt: Date | null;
-};
+export type PaystackConfig = { secretKey: string; apiBaseUrl: string; mode: "test" | "live" };
 
-/**
- * The provider call could not be completed or returned something unexpected.
- * The outcome is unknown, so callers must not treat it as a failed payment.
- */
-export class ProviderUnavailableError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "ProviderUnavailableError";
+/** Pure validation of Paystack settings: no live key without an explicit opt-in, and only to Paystack's own host. */
+export function validatePaystackConfig(input: { secretKey?: string; allowLive?: boolean; apiBaseUrl?: string }): PaystackConfig {
+  const secretKey = input.secretKey?.trim();
+  if (!secretKey) throw new ConfigError("PAYMENTS_NOT_CONFIGURED", "Paystack is not configured (no secret key).");
+  const mode = secretKey.startsWith("sk_live_") ? "live" : secretKey.startsWith("sk_test_") ? "test" : null;
+  if (!mode) throw new ConfigError("PAYMENTS_MISCONFIGURED", "The Paystack secret key must start with sk_test_ or sk_live_.");
+  if (mode === "live" && !input.allowLive) {
+    throw new ConfigError("PAYMENTS_LIVE_KEY_BLOCKED", "A live Paystack key is configured but live keys are not allowed (Integrations, or PAYSTACK_ALLOW_LIVE_KEYS).");
   }
+  const apiBaseUrl = (input.apiBaseUrl?.trim() || "https://api.paystack.co").replace(/\/+$/, "");
+  if (mode === "live" && apiBaseUrl !== "https://api.paystack.co") {
+    throw new ConfigError("PAYMENTS_MISCONFIGURED", "Live keys may only be sent to https://api.paystack.co.");
+  }
+  if (!isSafeApiBaseUrl(apiBaseUrl)) throw new ConfigError("PAYMENTS_MISCONFIGURED", "PAYSTACK_API_BASE_URL must use https.");
+  return { secretKey, apiBaseUrl, mode };
 }
 
-/** The provider definitively rejected the request (for example, a bad refund amount). */
-export class ProviderRejectedError extends Error {
-  constructor(message: string, public readonly httpStatus: number) {
-    super(message);
-    this.name = "ProviderRejectedError";
+/**
+ * Paystack settings from Integrations (environment variables win).
+ * `purpose: "new"` also requires the integration to be switched on; settling
+ * payments that already exist only needs credentials.
+ */
+export async function getPaystackConfig(purpose: "new" | "existing" = "existing"): Promise<PaystackConfig> {
+  const integration = await getIntegration("paystack");
+  if (purpose === "new" && integration.configured && !integration.enabled) {
+    throw new ConfigError("PAYMENTS_NOT_CONFIGURED", "Paystack is switched off in Integrations.");
   }
+  return validatePaystackConfig({
+    secretKey: integration.values.secretKey,
+    allowLive: integration.values.allowLive === "true",
+    apiBaseUrl: process.env.PAYSTACK_API_BASE_URL,
+  });
+}
+
+/** Webhook signatures are checked with the secret key (Paystack has no separate webhook secret). */
+export async function getPaystackWebhookSecret(): Promise<string> {
+  return (await getPaystackConfig("existing")).secretKey;
 }
 
 const TIMEOUT_MS = 15_000;
 
 async function paystackRequest(path: string, init: { method: "GET" | "POST"; body?: unknown }) {
-  const config = getPaystackConfig();
+  const config = await getPaystackConfig();
   let response: Response;
   try {
     response = await fetch(`${config.apiBaseUrl}${path}`, {
@@ -128,4 +143,11 @@ export async function createPaystackRefund(input: { reference: string; amountMin
   const id = data?.id;
   if (id == null) throw new ProviderUnavailableError("Paystack did not return a refund id.");
   return { providerRef: String(id), status: String(data.status ?? "pending") };
+}
+
+/** Proves the key works with a read-only call. */
+export async function testPaystack() {
+  const config = await getPaystackConfig("existing");
+  await paystackRequest("/balance", { method: "GET" });
+  return `Connected with a ${config.mode === "live" ? "LIVE" : "test"} key.`;
 }

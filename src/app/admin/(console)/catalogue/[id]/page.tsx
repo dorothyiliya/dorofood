@@ -8,6 +8,7 @@ import { ActionForm } from "@/app/admin/_components/action-form";
 import { Card, Field, Notice, PageHeader, Select, StatusBadge, inputClass } from "@/app/admin/_components/ui";
 import { ProductForm } from "@/app/admin/_components/product-form";
 import { addImageAction, primaryImageAction, removeImageAction, savePriceAction, saveVariantAction } from "@/app/admin/actions/catalogue";
+import { getIntegration } from "@/lib/integrations/store";
 
 export const metadata = { title: "Product" };
 
@@ -15,14 +16,16 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   const { id } = await params;
   const staff = await requireStaffPage();
   const editable = can(staff.role, "catalogue.manage");
-  const [product, categories, markets] = await Promise.all([
+  const [product, categories, markets, storage] = await Promise.all([
     prisma.product.findUnique({
       where: { id },
       include: { media: { orderBy: { sortOrder: "asc" } }, variants: { orderBy: { createdAt: "asc" }, include: { marketProducts: true, balances: { include: { location: true } } } } },
     }),
     prisma.category.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
     prisma.market.findMany({ orderBy: { code: "asc" } }),
+    getIntegration("storage"),
   ]);
+  const uploads = storage.active;
   if (!product) notFound();
   const live = product.status === "ACTIVE" && product.variants.some((v) => v.status === "ACTIVE" && v.marketProducts.some((mp) => mp.status === "ACTIVE"));
 
@@ -33,7 +36,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
       <div className="space-y-6">
         <Card title="Product details"><ProductForm product={product} categories={categories} disabled={!editable} /></Card>
 
-        <Card title="Photos" description="The first photo is the main one in the shop. Until a photo is added, the shop shows an illustrated pack.">
+        <Card title="Photos" description={`The first photo is the main one in the shop. Until a photo is added, the shop shows an illustrated pack.${uploads ? "" : " To upload photos directly, set up Photo storage in Integrations."}`}>
           {product.media.length === 0 && <p className="mb-4 text-sm text-slate-500">No photos yet.</p>}
           <ul className="mb-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
             {product.media.map((m, i) => (
@@ -52,7 +55,12 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           </ul>
           {editable && product.media.length < 8 && (
             <ActionForm action={addImageAction} hidden={{ productId: product.id }} submitLabel="Add photo" inline>
-              <Field label="Image address (https)" className="min-w-[280px] flex-1"><input name="url" type="url" required placeholder="https://" className={inputClass} /></Field>
+              {uploads && (
+                <Field label="Upload a photo" help="JPEG, PNG or WebP, up to 4 MB." className="min-w-[240px] flex-1">
+                  <input name="file" type="file" accept="image/jpeg,image/png,image/webp" className="block w-full text-sm text-slate-700 file:mr-3 file:rounded-md file:border-0 file:bg-brand-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-brand-800 hover:file:bg-brand-100" />
+                </Field>
+              )}
+              <Field label={uploads ? "Or an image address (https)" : "Image address (https)"} className="min-w-[240px] flex-1"><input name="url" type="url" required={!uploads} placeholder="https://" className={inputClass} /></Field>
               <Field label="Describe the photo" className="min-w-[220px] flex-1"><input name="altText" required minLength={3} placeholder="Pack of Suya Spice Blend, front" className={inputClass} /></Field>
             </ActionForm>
           )}

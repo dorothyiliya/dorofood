@@ -3,6 +3,10 @@
 import { adminAction, type ActionState } from "@/lib/admin/action";
 import { checkbox, id, int, money, oneOf, optionalInt, optionalMoney, text } from "@/lib/admin/form";
 import { addProductImage, makePrimaryImage, removeProductImage, saveCategory, saveMarketPrice, saveProduct, saveVariant } from "@/lib/admin/catalogue";
+import { draftProductDescription } from "@/lib/integrations/ai";
+import { uploadProductPhoto } from "@/lib/integrations/storage";
+import { recordAudit } from "@/lib/audit";
+import { prisma } from "@/lib/prisma";
 
 const STATUS = ["DRAFT", "ACTIVE", "ARCHIVED"] as const;
 
@@ -71,9 +75,41 @@ export async function saveCategoryAction(_: ActionState, form: FormData) {
 
 export async function addImageAction(_: ActionState, form: FormData) {
   return adminAction("catalogue.manage", async (staff) => {
-    await addProductImage(id(form, "productId"), { url: text(form, "url", 2000), altText: text(form, "altText", 200) }, staff.id);
-    return "Photo added.";
+    const file = form.get("file");
+    const uploading = file instanceof File && file.size > 0;
+    if (!uploading && !text(form, "url", 2000)) throw new RangeError("Choose a photo to upload or enter an image address.");
+    const url = uploading ? await uploadProductPhoto(file) : text(form, "url", 2000);
+    await addProductImage(id(form, "productId"), { url, altText: text(form, "altText", 200) }, staff.id);
+    return uploading ? "Photo uploaded and added." : "Photo added.";
   }, { storefront: true });
+}
+
+export type DraftState = { ok: boolean; message: string; at: number; text?: string } | null;
+
+/** Asks the AI integration for a description draft. The draft goes into the form only; staff decide whether to save it. */
+export async function draftDescriptionAction(_: DraftState, form: FormData): Promise<DraftState> {
+  let draft = "";
+  const state = await adminAction("catalogue.manage", async (staff) => {
+    const categoryId = text(form, "categoryId", 40);
+    const productId = text(form, "productId", 64);
+    const [category, variants] = await Promise.all([
+      categoryId ? prisma.category.findUnique({ where: { id: categoryId }, select: { name: true } }) : null,
+      productId ? prisma.productVariant.findMany({ where: { productId }, select: { packSize: true } }) : [],
+    ]);
+    const name = text(form, "name", 120);
+    if (name.length < 2) throw new RangeError("Enter the product name first.");
+    draft = await draftProductDescription({
+      name,
+      brand: text(form, "brand", 80) || undefined,
+      category: category?.name,
+      originCountry: text(form, "originCountry", 2) || undefined,
+      packSizes: variants.map((v) => v.packSize),
+      notes: text(form, "description", 1000) || undefined,
+    });
+    await prisma.$transaction((tx) => recordAudit(tx, { action: "AI_DESCRIPTION_DRAFTED", entityType: "Product", entityId: productId || "new", actorId: staff.id }));
+    return "Draft ready. Read it, edit anything that isn't right, then save.";
+  }, { revalidate: false });
+  return state ? { ...state, text: state.ok ? draft : undefined } : null;
 }
 
 export async function removeImageAction(_: ActionState, form: FormData) {

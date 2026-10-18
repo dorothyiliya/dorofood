@@ -180,17 +180,19 @@ model ProductAttribute {
 }
 
 model Market {
-  id             String          @id @default(cuid())
-  code           String          @unique
-  name           String
-  countryCode    String
-  currency       String
-  status         MarketStatus    @default(PAUSED)
-  marketProducts MarketProduct[]
-  orders         Order[]
-  shippingRules  ShippingRule[]
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  id              String          @id @default(cuid())
+  code            String          @unique
+  name            String
+  countryCode     String
+  currency        String
+  status          MarketStatus    @default(PAUSED)
+  /// Payment gateway used at checkout for this market ("paystack" or "whop").
+  paymentProvider String          @default("paystack")
+  marketProducts  MarketProduct[]
+  orders          Order[]
+  shippingRules   ShippingRule[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
 }
 
 model MarketProduct {
@@ -633,4 +635,48 @@ model JobRun {
   finishedAt  DateTime?
 
   @@index([name, startedAt])
+}
+
+/// Third-party integrations configured from the admin. Secrets are stored only
+/// as AES-256-GCM ciphertext (key: INTEGRATIONS_ENCRYPTION_KEY); environment
+/// variables, when set, take precedence over anything stored here.
+model Integration {
+  key             String    @id
+  enabled         Boolean   @default(false)
+  settingsJson    Json      @default("{}")
+  secretsCipher   String?   @db.Text
+  secretHints     Json      @default("{}")
+  lastTestAt      DateTime?
+  lastTestOk      Boolean?
+  lastTestMessage String?   @db.Text
+  updatedBy       String?
+  updatedAt       DateTime  @updatedAt
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
+}
+
+/// Outbox for customer emails: written in the same transaction as the event
+/// that causes it, delivered afterwards, retried by the reconciliation job.
+model Notification {
+  id                String             @id @default(cuid())
+  kind              String
+  dedupeKey         String             @unique
+  toEmail           String
+  subject           String
+  payloadJson       Json
+  status            NotificationStatus @default(PENDING)
+  attempts          Int                @default(0)
+  lastError         String?            @db.Text
+  providerMessageId String?
+  orderId           String?
+  createdAt         DateTime           @default(now())
+  sentAt            DateTime?
+
+  @@index([status, createdAt])
+  @@index([orderId])
 }

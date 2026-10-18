@@ -9,7 +9,7 @@ A premium, curated food ecommerce starter for Nigerian customers and eligible in
 - The storefront is a **preview**: it renders a hard-coded sample catalogue, has no checkout form, and says so on the page.
 - The server-side commerce core is built and tested against PostgreSQL with a mocked Paystack. It covers authoritative pricing, export eligibility, stock reservation, idempotent checkout, Paystack verification, a durable and deduplicated webhook, late-payment and duplicate-charge handling, refunds, shipment creation with retry, and dispatch.
 - Checkout is **off** unless `CHECKOUT_ENABLED=true`, and every payment path fails closed without valid credentials.
-- There is no staff authentication or admin UI, no rate limiting, no carrier integration, and no testing against the real Paystack sandbox.
+- There is no rate limiting, no carrier integration, and no testing against the real Paystack or Whop sandboxes yet.
 
 ## Storefront
 
@@ -43,8 +43,9 @@ Staff sign in at `/admin/login`. Everything operational is controlled there:
 | Payments / Refunds | Every Paystack transaction and webhook event; retry failed events; refunds needing attention |
 | Catalogue / Categories | Products, variants (SKUs), per-market prices, export eligibility, categories |
 | Inventory | Stock by location, receipts, adjustments, stocktakes (never below reserved stock), movement history, locations |
-| Markets & delivery | Markets and currencies; delivery rules with flat rates (no rate means no checkout) |
+| Markets & delivery | Markets, currencies and the payment gateway for each market (Paystack or Whop); delivery rules with flat rates (no rate means no checkout) |
 | Store settings | Store open or closed, payment window, fulfilment location, low-stock threshold, preview mode, announcement bar, contact email |
+| Integrations | Paystack, Whop, NVIDIA AI, Resend email and photo storage: credentials, on/off, connection tests, webhook URLs |
 | Staff | Accounts and roles (Owner, Admin, Finance, Fulfilment, Catalogue, Viewer), password resets, deactivation |
 | Audit log / System | Who changed what; configuration health; run reconciliation now |
 
@@ -60,11 +61,30 @@ npm run admin:create -- --email you@example.com --name "Your Name"
 
 You are prompted for the password (hidden; 12+ characters). Further staff are added from **Staff** in the admin.
 
+### Integrations
+
+**Admin → Integrations** (Owner and Admin roles) holds every third-party connection:
+
+| Integration | Used for | Webhook |
+| --- | --- | --- |
+| Paystack | Payments, usually for naira markets | `/api/v1/webhooks/paystack` |
+| Whop | Hosted card checkout, usually for international markets | `/api/v1/webhooks/whop` (subscribe to `payment.*` and `refund.*`) |
+| NVIDIA AI | "Draft with AI" for product descriptions; staff review before saving | |
+| Resend | Order confirmed, dispatched and refunded emails | |
+| Photo storage | Upload product photos (S3-compatible: Cloudflare R2, Tigris, AWS S3) | |
+
+- Secrets are encrypted with AES-256-GCM using `INTEGRATIONS_ENCRYPTION_KEY`, are write-only, and only their last four characters are shown. Without that key, secrets can only come from environment variables.
+- An environment variable (listed in `.env.example`) always wins over a value saved in the admin.
+- **Test connection** makes a harmless call: a read-only API request, a one-word prompt, an email to yourself, or writing and deleting a tiny file.
+- Each market picks its gateway in **Markets & delivery**. Every gateway goes through the same rules: payment is confirmed only by a server-to-server check, webhooks are signed and deduplicated, refunds with an unknown outcome are never retried, and reconciliation catches lost webhooks.
+- Switching a gateway off stops new payments only. Payments already taken can still be verified and refunded.
+- Emails are queued in the same transaction as the change they announce, sent after it commits, and retried by the scheduled job. They are marked skipped when Resend is not set up.
+
 ### When checkout is actually live
 
 All three must be true, and **System** shows which is missing:
 1. `CHECKOUT_ENABLED=true` on the deployment (Vercel: production and development yes, preview no).
-2. A Paystack secret key in `PAYSTACK_SECRET_KEY`.
+2. The Nigeria market's payment gateway is set up and switched on in **Integrations**.
 3. **Store settings → Store accepts orders** switched on.
 
 The storefront has no checkout form yet, so even then customers can only order through the API.
@@ -104,12 +124,15 @@ Integration and smoke tests truncate every table, so they only run against a dat
 - `src/app/api/v1/checkout/quotes`: price and eligibility check; reserves nothing
 - `src/app/api/v1/checkout`: creates the order, reserves stock, starts the Paystack payment (needs an `Idempotency-Key` header)
 - `src/app/api/v1/payments/verify` and `src/app/checkout/complete`: customer-facing payment status, verified server-to-server
-- `src/app/api/v1/webhooks/paystack`: signed, persisted, deduplicated webhook
-- `src/app/api/internal/jobs/reconcile`: scheduled job (Bearer `CRON_SECRET`) that retries failed events, verifies open payments, expires unpaid orders and sends pending refunds
+- `src/app/api/v1/webhooks/paystack` and `.../whop`: signed, persisted, deduplicated webhooks
+- `src/app/api/internal/jobs/reconcile`: scheduled job (Bearer `CRON_SECRET`; `vercel.json` runs it daily, the most the Hobby plan allows) that retries failed events, verifies open payments, expires unpaid orders, sends pending refunds and emails. Checkout also releases expired holds when stock runs short
+- `src/lib/payments/gateway.ts`: one interface over Paystack and Whop
+- `src/lib/integrations/*`: integration definitions, encrypted settings store, AI, email and storage clients
+- `src/lib/notifications.ts`: email outbox and templates
 - `src/lib/commerce/*`: pricing, checkout, payments, refunds, shipments, jobs. Refunds, export review, shipment creation and dispatch have **no HTTP route** until staff authentication exists
 - `src/lib/inventory.ts`: reservation lifecycle; every transition is conditional, and the database enforces 0 ≤ reserved ≤ on hand
 - `src/lib/env.ts`: server-only configuration that fails closed
-- `test/`: unit tests, integration tests and a fake Paystack server
+- `test/`: unit tests, integration tests and fake Paystack, Whop, Resend, NVIDIA and S3 servers
 
 ## Production launch checklist
 

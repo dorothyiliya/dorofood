@@ -4,6 +4,7 @@ import { jsonSafe, lockOrder, recordAudit } from "@/lib/audit";
 import { fulfilReservation } from "@/lib/inventory";
 import { CommerceError } from "@/lib/commerce/errors";
 import { requestRefund } from "@/lib/commerce/refunds";
+import { deliverQueued, enqueueOrderDispatched } from "@/lib/notifications";
 
 export type CarrierShipmentRequest = {
   /** Must be forwarded to the carrier so a retried request cannot create two consignments. */
@@ -91,7 +92,7 @@ export async function createShipmentForOrder(orderId: string, carrier: CarrierAd
 
 /** Physical hand-over to the carrier: allocated stock leaves the location. */
 export async function markShipmentDispatched(shipmentId: string, actorId: string) {
-  return prisma.$transaction(async (tx) => {
+  const notify = await prisma.$transaction(async (tx) => {
     const shipment = await tx.shipment.findUnique({ where: { id: shipmentId } });
     if (!shipment) throw new CommerceError("SHIPMENT_NOT_FOUND", 404, "Shipment not found.");
     await lockOrder(tx, shipment.orderId);
@@ -104,7 +105,9 @@ export async function markShipmentDispatched(shipmentId: string, actorId: string
     for (const r of order.reservations) await fulfilReservation(tx, r, { reference: order.orderNumber, actorId });
     await tx.order.update({ where: { id: order.id }, data: { status: "DISPATCHED" } });
     await recordAudit(tx, { action: "ORDER_DISPATCHED", entityType: "Order", entityId: order.id, actorId, metadata: { shipmentId } });
+    return [await enqueueOrderDispatched(tx, order.id, shipment)];
   });
+  await deliverQueued(notify);
 }
 
 /** Export compliance decision. A rejection refunds the customer in full. */

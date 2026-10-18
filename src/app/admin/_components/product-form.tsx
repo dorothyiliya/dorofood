@@ -2,8 +2,11 @@ import type { Category, Product } from "@prisma/client";
 import { ActionForm } from "@/app/admin/_components/action-form";
 import { Field, Select, inputClass } from "@/app/admin/_components/ui";
 import { createProductAction, updateProductAction } from "@/app/admin/actions/catalogue";
+import { AiDraftButton } from "@/app/admin/_components/ai-draft-button";
+import { getIntegration } from "@/lib/integrations/store";
 
-export function ProductForm({ product, categories, disabled }: { product?: Product; categories: Category[]; disabled?: boolean }) {
+export async function ProductForm({ product, categories, disabled }: { product?: Product; categories: Category[]; disabled?: boolean }) {
+  const aiReady = !disabled && (await getIntegration("nvidia")).active;
   const fields = (
     <fieldset disabled={disabled} className="grid gap-4 sm:grid-cols-2">
       <Field label="Name"><input name="name" required defaultValue={product?.name} className={inputClass} /></Field>
@@ -17,7 +20,12 @@ export function ProductForm({ product, categories, disabled }: { product?: Produ
       </Field>
       <Field label="Country of origin" help="Two-letter code. Shipping anywhere else requires export eligibility."><input name="originCountry" required maxLength={2} defaultValue={product?.originCountry ?? "NG"} className={`${inputClass} uppercase`} /></Field>
       <Field label="Status" help="Only Active products with an Active price appear in the shop."><Select name="status" options={["DRAFT", "ACTIVE", "ARCHIVED"]} defaultValue={product?.status ?? "DRAFT"} /></Field>
-      <Field label="Description" className="sm:col-span-2"><textarea name="description" required minLength={10} rows={4} defaultValue={product?.description} className={inputClass} /></Field>
+      <div className="sm:col-span-2">
+        <Field label="Description" help={aiReady ? "Tip: type a few notes (taste, ingredients, how to use) and press Draft with AI. Always check the draft before saving." : undefined}>
+          <textarea name="description" required minLength={10} rows={5} defaultValue={product?.description} className={inputClass} />
+        </Field>
+        {aiReady && <AiDraftButton />}
+      </div>
     </fieldset>
   );
   if (disabled) return fields;

@@ -2,7 +2,7 @@
 
 import { AdminLink as Link } from "@/app/admin/_components/admin-link";
 import { usePathname } from "next/navigation";
-import { ArrowCounterClockwise, ClockCounterClockwise, CreditCard, Gauge, Gear, GlobeHemisphereWest, Pulse, Receipt, SquaresFour, Tag, Users, Warehouse } from "@phosphor-icons/react/dist/ssr";
+import { ArrowCounterClockwise, ClockCounterClockwise, CreditCard, Gauge, Gear, GlobeHemisphereWest, PlugsConnected, Pulse, Receipt, SquaresFour, Tag, Users, Warehouse } from "@phosphor-icons/react/dist/ssr";
 
 const LINKS = [
   { href: "/admin", label: "Dashboard", Icon: Gauge, exact: true },
@@ -14,6 +14,7 @@ const LINKS = [
   { href: "/admin/inventory", label: "Inventory", Icon: Warehouse },
   { href: "/admin/markets", label: "Markets & delivery", Icon: GlobeHemisphereWest },
   { href: "/admin/settings", label: "Store settings", Icon: Gear },
+  { href: "/admin/integrations", label: "Integrations", Icon: PlugsConnected },
   { href: "/admin/staff", label: "Staff", Icon: Users },
   { href: "/admin/audit", label: "Audit log", Icon: ClockCounterClockwise },
   { href: "/admin/system", label: "System", Icon: Pulse },

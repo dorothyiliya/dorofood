@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { assertCheckoutEnabled, getCronSecret, getPaystackConfig } from "@/lib/env";
+import { assertCheckoutEnabled, getCronSecret } from "@/lib/env";
+import { validatePaystackConfig } from "@/lib/payments/paystack";
 import { mergeItems } from "@/lib/commerce/pricing";
 
 const saved = { ...process.env };
@@ -12,32 +13,22 @@ function configError(fn: () => unknown) {
 
 describe("payment configuration fails closed", () => {
   it("missing key", () => {
-    delete process.env.PAYSTACK_SECRET_KEY;
-    expect(configError(getPaystackConfig)).toBe("PAYMENTS_NOT_CONFIGURED");
+    expect(configError(() => validatePaystackConfig({}))).toBe("PAYMENTS_NOT_CONFIGURED");
   });
   it("public key pasted as secret", () => {
-    process.env.PAYSTACK_SECRET_KEY = "pk_test_123";
-    expect(configError(getPaystackConfig)).toBe("PAYMENTS_MISCONFIGURED");
+    expect(configError(() => validatePaystackConfig({ secretKey: "pk_test_123" }))).toBe("PAYMENTS_MISCONFIGURED");
   });
   it("live key without explicit opt-in", () => {
-    process.env.PAYSTACK_SECRET_KEY = "sk_live_123";
-    expect(configError(getPaystackConfig)).toBe("PAYMENTS_LIVE_KEY_BLOCKED");
+    expect(configError(() => validatePaystackConfig({ secretKey: "sk_live_123" }))).toBe("PAYMENTS_LIVE_KEY_BLOCKED");
   });
   it("live key may only be sent to the real Paystack host", () => {
-    process.env.PAYSTACK_SECRET_KEY = "sk_live_123";
-    process.env.PAYSTACK_ALLOW_LIVE_KEYS = "true";
-    process.env.PAYSTACK_API_BASE_URL = "https://evil.example.com";
-    expect(configError(getPaystackConfig)).toBe("PAYMENTS_MISCONFIGURED");
-    delete process.env.PAYSTACK_API_BASE_URL;
-    expect(getPaystackConfig()).toMatchObject({ mode: "live", apiBaseUrl: "https://api.paystack.co" });
+    expect(configError(() => validatePaystackConfig({ secretKey: "sk_live_123", allowLive: true, apiBaseUrl: "https://evil.example.com" }))).toBe("PAYMENTS_MISCONFIGURED");
+    expect(validatePaystackConfig({ secretKey: "sk_live_123", allowLive: true })).toMatchObject({ mode: "live", apiBaseUrl: "https://api.paystack.co" });
   });
   it("rejects plain-http provider URLs other than loopback", () => {
-    process.env.PAYSTACK_SECRET_KEY = "sk_test_123";
-    process.env.PAYSTACK_API_BASE_URL = "http://api.paystack.co";
-    expect(configError(getPaystackConfig)).toBe("PAYMENTS_MISCONFIGURED");
+    expect(configError(() => validatePaystackConfig({ secretKey: "sk_test_123", apiBaseUrl: "http://api.paystack.co" }))).toBe("PAYMENTS_MISCONFIGURED");
   });
   it("checkout is off unless explicitly enabled", () => {
-    process.env.PAYSTACK_SECRET_KEY = "sk_test_123";
     process.env.DATABASE_URL = "postgresql://x";
     process.env.APP_BASE_URL = "https://example.com";
     delete process.env.CHECKOUT_ENABLED;

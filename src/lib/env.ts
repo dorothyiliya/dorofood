@@ -13,40 +13,18 @@ export class ConfigError extends Error {
   }
 }
 
-export type PaystackConfig = { secretKey: string; apiBaseUrl: string; mode: "test" | "live" };
-
-export function getPaystackConfig(): PaystackConfig {
-  const secretKey = process.env.PAYSTACK_SECRET_KEY?.trim();
-  if (!secretKey) throw new ConfigError("PAYMENTS_NOT_CONFIGURED", "PAYSTACK_SECRET_KEY is not set.");
-
-  const mode = secretKey.startsWith("sk_live_") ? "live" : secretKey.startsWith("sk_test_") ? "test" : null;
-  if (!mode) throw new ConfigError("PAYMENTS_MISCONFIGURED", "PAYSTACK_SECRET_KEY must be an sk_test_ or sk_live_ key.");
-  if (mode === "live" && process.env.PAYSTACK_ALLOW_LIVE_KEYS !== "true") {
-    throw new ConfigError("PAYMENTS_LIVE_KEY_BLOCKED", "A live Paystack key is configured but PAYSTACK_ALLOW_LIVE_KEYS is not \"true\".");
-  }
-
-  const apiBaseUrl = (process.env.PAYSTACK_API_BASE_URL?.trim() || "https://api.paystack.co").replace(/\/+$/, "");
-  if (mode === "live" && apiBaseUrl !== "https://api.paystack.co") {
-    throw new ConfigError("PAYMENTS_MISCONFIGURED", "Live keys may only be sent to https://api.paystack.co.");
-  }
-  if (!/^https:\/\//.test(apiBaseUrl) && !/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(apiBaseUrl)) {
-    throw new ConfigError("PAYMENTS_MISCONFIGURED", "PAYSTACK_API_BASE_URL must use https.");
-  }
-  return { secretKey, apiBaseUrl, mode };
-}
-
-/** Webhook signatures are checked with the same secret key (Paystack has no separate webhook secret). */
-export function getPaystackWebhookSecret(): string {
-  return getPaystackConfig().secretKey;
-}
-
+/** Deployment-level switches. Payment gateway credentials are checked per market at checkout. */
 export function assertCheckoutEnabled(): void {
   if (process.env.CHECKOUT_ENABLED !== "true") {
     throw new ConfigError("CHECKOUT_DISABLED", "Checkout is disabled. Set CHECKOUT_ENABLED=true only after launch sign-off.");
   }
   if (!process.env.DATABASE_URL) throw new ConfigError("DATABASE_NOT_CONFIGURED", "DATABASE_URL is not set.");
-  getPaystackConfig();
   getAppBaseUrl();
+}
+
+/** Only https endpoints, except loopback addresses used by local test doubles. */
+export function isSafeApiBaseUrl(url: string) {
+  return /^https:\/\//.test(url) || /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?(\/.*)?$/.test(url);
 }
 
 /**

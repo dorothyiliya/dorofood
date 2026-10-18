@@ -1,4 +1,5 @@
 import { testDatabaseUrl } from "./test-database";
+import "./hermetic-env";
 
 // Runs in every integration worker before any app module is imported.
 process.env.DATABASE_URL = testDatabaseUrl();

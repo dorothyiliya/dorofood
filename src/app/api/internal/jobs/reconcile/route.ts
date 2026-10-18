@@ -14,8 +14,8 @@ function authorised(request: Request) {
 }
 
 /**
- * Scheduled job (e.g. Vercel Cron every 5 minutes): retries failed webhook
- * events, verifies open payments, expires unpaid orders and sends pending refunds.
+ * Scheduled job (vercel.json; daily on the Hobby plan, can be every few minutes on Pro): retries failed webhook
+ * events, verifies open payments, expires unpaid orders, sends pending refunds and emails.
  */
 async function run(request: Request) {
   try {

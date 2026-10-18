@@ -5,6 +5,9 @@ import { minorToInput } from "@/lib/money";
 import { ActionForm } from "@/app/admin/_components/action-form";
 import { Card, Field, Money, Notice, PageHeader, Select, StatusBadge, inputClass } from "@/app/admin/_components/ui";
 import { saveMarketAction, saveShippingRuleAction } from "@/app/admin/actions/config";
+import { AdminLink as Link } from "@/app/admin/_components/admin-link";
+import { definition, PAYMENT_PROVIDERS } from "@/lib/integrations/definitions";
+import { gatewayReady } from "@/lib/payments/gateway";
 
 export const metadata = { title: "Markets & delivery" };
 const CURRENCIES = ["NGN", "GBP", "USD", "CAD", "EUR"];
@@ -13,6 +16,8 @@ export default async function MarketsPage() {
   const staff = await requireStaffPage();
   const editable = can(staff.role, "markets.manage");
   const markets = await prisma.market.findMany({ orderBy: { code: "asc" }, include: { shippingRules: { orderBy: { countryCode: "asc" } }, _count: { select: { marketProducts: true } } } });
+  const ready = Object.fromEntries(await Promise.all(PAYMENT_PROVIDERS.map(async (p) => [p, await gatewayReady(p)] as const))) as Record<string, boolean>;
+  const providerOptions: [string, string][] = PAYMENT_PROVIDERS.map((p) => [p, `${definition(p).name}${ready[p] ? "" : " (not set up)"}`]);
 
   return (
     <>
@@ -20,11 +25,14 @@ export default async function MarketsPage() {
       <div className="mb-6"><Notice>Delivery rates here are flat fees you set. No courier integration is connected, so nothing is quoted live and nothing is invented: a destination without a rate cannot check out.</Notice></div>
       <div className="space-y-6">
         {markets.map((m) => (
-          <Card key={m.id} title={`${m.name} (${m.code})`} description={`${m.currency} · ${m._count.marketProducts} priced variant(s)`} actions={<StatusBadge status={m.status} />}>
+          <Card key={m.id} title={`${m.name} (${m.code})`} description={`${m.currency} · ${m._count.marketProducts} priced variant(s) · payments by ${definition(m.paymentProvider === "whop" ? "whop" : "paystack").name}`} actions={<StatusBadge status={m.status} />}>
+            {m.status === "ACTIVE" && !ready[m.paymentProvider] && (
+              <div className="mb-4"><Notice tone="warning">Customers can&apos;t pay in this market: {definition(m.paymentProvider === "whop" ? "whop" : "paystack").name} is not set up and switched on. <Link href="/admin/integrations" className="font-medium underline">Open Integrations</Link></Notice></div>
+            )}
             {editable && (
               <details className="mb-4">
                 <summary className="cursor-pointer text-sm font-medium text-brand-800">Edit market</summary>
-                <ActionForm action={saveMarketAction} hidden={{ marketId: m.id }} submitLabel="Save market" className="mt-3" inline><MarketFields market={m} /></ActionForm>
+                <ActionForm action={saveMarketAction} hidden={{ marketId: m.id }} submitLabel="Save market" className="mt-3" inline><MarketFields market={m} providers={providerOptions} /></ActionForm>
               </details>
             )}
             <h3 className="mb-2 text-sm font-semibold">Delivery rules</h3>
@@ -51,7 +59,7 @@ export default async function MarketsPage() {
         ))}
         {editable && (
           <Card title="New market" description="Use the country's two-letter code (e.g. GH), or OTHER for a multi-country market.">
-            <ActionForm action={saveMarketAction} submitLabel="Create market" inline><MarketFields /></ActionForm>
+            <ActionForm action={saveMarketAction} submitLabel="Create market" inline><MarketFields providers={providerOptions} /></ActionForm>
           </Card>
         )}
       </div>
@@ -59,7 +67,7 @@ export default async function MarketsPage() {
   );
 }
 
-function MarketFields({ market }: { market?: { code: string; name: string; countryCode: string; currency: string; status: string } }) {
+function MarketFields({ market, providers }: { market?: { code: string; name: string; countryCode: string; currency: string; status: string; paymentProvider: string }; providers: [string, string][] }) {
   return (
     <>
       <Field label="Code"><input name="code" required defaultValue={market?.code} className={`${inputClass} sm:!w-24 uppercase`} /></Field>
@@ -67,6 +75,7 @@ function MarketFields({ market }: { market?: { code: string; name: string; count
       <Field label="Country"><input name="countryCode" required maxLength={2} defaultValue={market?.countryCode} className={`${inputClass} sm:!w-20 uppercase`} /></Field>
       <Field label="Currency"><Select name="currency" options={CURRENCIES.map((c) => [c, c])} defaultValue={market?.currency ?? "NGN"} /></Field>
       <Field label="Status"><Select name="status" options={["ACTIVE", "PAUSED"]} defaultValue={market?.status ?? "PAUSED"} /></Field>
+      <Field label="Payment gateway" help="Paystack suits naira; Whop suits international cards."><Select name="paymentProvider" options={providers} defaultValue={market?.paymentProvider ?? "paystack"} /></Field>
     </>
   );
 }

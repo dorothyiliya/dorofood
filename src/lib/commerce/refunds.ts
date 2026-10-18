@@ -5,7 +5,9 @@ import { ConfigError } from "@/lib/env";
 import { lockOrder, recordAudit } from "@/lib/audit";
 import { releaseReservation } from "@/lib/inventory";
 import { CommerceError } from "@/lib/commerce/errors";
-import { createPaystackRefund, ProviderRejectedError } from "@/lib/payments/paystack";
+import { getGateway } from "@/lib/payments/gateway";
+import { asGatewayPayment, ProviderRejectedError } from "@/lib/payments/types";
+import { deliverQueued, enqueueRefundProcessed } from "@/lib/notifications";
 
 const REFUNDABLE_PAYMENT = ["SUCCEEDED", "PARTIALLY_REFUNDED", "REFUND_PENDING"] as const;
 const SHIPPED = ["DISPATCHED", "DELIVERED"];
@@ -68,9 +70,10 @@ export async function requestRefund(input: { orderId: string; amountMinor?: bigi
 }
 
 /**
- * Sends a refund to Paystack at most once. Paystack's refund API has no
- * idempotency key, so a call whose outcome is unknown is marked UNKNOWN and is
- * never retried automatically; a blind retry could refund the customer twice.
+ * Sends a refund to the payment's gateway at most once. Neither Paystack's nor
+ * Whop's refund API takes an idempotency key, so a call whose outcome is unknown
+ * is marked UNKNOWN and never retried automatically; a blind retry could refund
+ * the customer twice.
  */
 export async function submitRefund(refundId: string) {
   const claimed = await prisma.refund.updateMany({ where: { id: refundId, providerCallState: "NOT_SENT" }, data: { providerCallState: "SENDING" } });
@@ -78,7 +81,8 @@ export async function submitRefund(refundId: string) {
   const refund = await prisma.refund.findUniqueOrThrow({ where: { id: refundId }, include: { payment: true } });
 
   try {
-    const result = await createPaystackRefund({ reference: refund.payment.providerReference, amountMinor: refund.amountMinor, merchantNote: refund.reason.slice(0, 200) });
+    const gateway = await getGateway(refund.payment.provider);
+    const result = await gateway.refund({ payment: asGatewayPayment(refund.payment), amountMinor: refund.amountMinor, note: refund.reason.slice(0, 200) });
     await prisma.refund.update({ where: { id: refundId }, data: { providerCallState: "SENT", providerRef: result.providerRef } });
   } catch (error) {
     if (error instanceof ConfigError) {
@@ -92,7 +96,7 @@ export async function submitRefund(refundId: string) {
         where: { id: refundId },
         data: rejected
           ? { providerCallState: "REJECTED", status: "FAILED", failureReason: (error as Error).message.slice(0, 1000) }
-          : { providerCallState: "UNKNOWN", failureReason: `Outcome unknown, reconcile manually in Paystack: ${(error as Error).message}`.slice(0, 1000) },
+          : { providerCallState: "UNKNOWN", failureReason: `Outcome unknown, reconcile manually in the provider dashboard: ${(error as Error).message}`.slice(0, 1000) },
       });
       await recordAudit(tx, { action: rejected ? "REFUND_REJECTED" : "REFUND_OUTCOME_UNKNOWN", entityType: "Refund", entityId: refundId, metadata: { message: (error as Error).message } });
     });
@@ -136,7 +140,8 @@ export async function finaliseRefund(
   target: "REFUNDED" | "FAILED",
   options: { actorId: string; failureReason?: string; providerRef?: string; providerCallState?: "SENT" | "REJECTED"; note?: string },
 ) {
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
+    const notify: string[] = [];
     const payment = await tx.paymentTransaction.findFirstOrThrow({ where: { refunds: { some: { id: refundId } } } });
     await lockOrder(tx, payment.orderId);
     const moved = await tx.refund.updateMany({
@@ -148,9 +153,9 @@ export async function finaliseRefund(
         ...(options.providerCallState ? { providerCallState: options.providerCallState } : {}),
       },
     });
-    if (moved.count !== 1) return false;
+    if (moved.count !== 1) return { changed: false, notify };
     await recordAudit(tx, { action: target === "REFUNDED" ? "REFUND_PROCESSED" : "REFUND_FAILED", entityType: "Refund", entityId: refundId, actorId: options.actorId, metadata: options.note ? { note: options.note } : undefined });
-    if (target !== "REFUNDED") return true;
+    if (target !== "REFUNDED") return { changed: true, notify };
 
     const processed = await tx.refund.findMany({ where: { paymentId: payment.id, status: "REFUNDED" }, select: { amountMinor: true } });
     const refunded = processed.reduce((s, r) => s + r.amountMinor, BigInt(0));
@@ -161,6 +166,10 @@ export async function finaliseRefund(
       const order = await tx.order.findUniqueOrThrow({ where: { id: payment.orderId } });
       if (order.status === "REFUND_PENDING") await tx.order.update({ where: { id: order.id }, data: { status: "REFUNDED" } });
     }
-    return true;
+    const refund = await tx.refund.findUniqueOrThrow({ where: { id: refundId } });
+    notify.push(await enqueueRefundProcessed(tx, payment.orderId, { id: refund.id, amountMinor: refund.amountMinor, currency: refund.currency, full }));
+    return { changed: true, notify };
   });
+  await deliverQueued(result.notify);
+  return result.changed;
 }

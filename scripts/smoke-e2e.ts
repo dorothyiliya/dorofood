@@ -7,6 +7,10 @@ import { execSync, spawn, type ChildProcess } from "node:child_process";
 import { PrismaClient } from "@prisma/client";
 import { FakePaystack } from "../test/support/fake-paystack";
 import { testDatabaseUrl } from "../test/support/test-database";
+import { INTEGRATIONS } from "../src/lib/integrations/definitions";
+
+// The server must not inherit real provider credentials from the developer's shell.
+const NO_CREDENTIALS = Object.fromEntries(INTEGRATIONS.flatMap((d) => d.fields.flatMap((f) => (f.env ? [[f.env, undefined]] : []))).concat([["INTEGRATIONS_ENCRYPTION_KEY", undefined]]));
 
 const PORT = 3100;
 const BASE = `http://127.0.0.1:${PORT}`;
@@ -21,7 +25,7 @@ function check(label: string, ok: boolean, detail?: unknown) {
 
 async function startServer(env: Record<string, string | undefined>) {
   const server = spawn("npx", ["next", "start", "-p", String(PORT), "-H", "127.0.0.1"], {
-    env: { ...process.env, PAYSTACK_SECRET_KEY: undefined, CHECKOUT_ENABLED: undefined, ...env, DATABASE_URL, NODE_ENV: "production" } as NodeJS.ProcessEnv,
+    env: { ...process.env, ...NO_CREDENTIALS, CHECKOUT_ENABLED: undefined, ...env, DATABASE_URL, NODE_ENV: "production" } as NodeJS.ProcessEnv,
     stdio: ["ignore", "pipe", "pipe"],
   });
   server.stderr?.on("data", (d) => process.env.SMOKE_VERBOSE && process.stderr.write(d));

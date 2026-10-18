@@ -3,6 +3,8 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { CommerceError, isUniqueViolation } from "@/lib/commerce/errors";
+import { definition, PAYMENT_PROVIDERS } from "@/lib/integrations/definitions";
+import { gatewayReady } from "@/lib/payments/gateway";
 
 const country = z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/, "Use a two-letter ISO country code.");
 
@@ -12,6 +14,7 @@ export const marketSchema = z.object({
   countryCode: country,
   currency: z.enum(["NGN", "GBP", "USD", "CAD", "EUR"]),
   status: z.enum(["ACTIVE", "PAUSED"]),
+  paymentProvider: z.enum(PAYMENT_PROVIDERS).default("paystack"),
 });
 
 export const shippingRuleSchema = z.object({
@@ -28,6 +31,10 @@ export async function saveMarket(id: string | null, input: z.input<typeof market
   const data = marketSchema.parse(input);
   if (data.code !== "OTHER" && data.code.length === 2 && data.code !== data.countryCode) {
     throw new CommerceError("MARKET_COUNTRY_MISMATCH", 422, "A two-letter market code must match its country.");
+  }
+  const previous = id ? await prisma.market.findUnique({ where: { id }, select: { paymentProvider: true } }) : null;
+  if (data.status === "ACTIVE" && previous?.paymentProvider !== data.paymentProvider && !(await gatewayReady(data.paymentProvider))) {
+    throw new CommerceError("GATEWAY_NOT_READY", 409, `${definition(data.paymentProvider).name} is not set up and switched on in Integrations. Set it up first, or save the market as paused.`);
   }
   try {
     return await prisma.$transaction(async (tx) => {

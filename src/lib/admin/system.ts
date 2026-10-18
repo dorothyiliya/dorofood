@@ -1,6 +1,11 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { ConfigError, getAppBaseUrl, getCronSecret, getPaystackConfig } from "@/lib/env";
+import { ConfigError, getAppBaseUrl, getCronSecret } from "@/lib/env";
+import { canEncrypt } from "@/lib/integrations/crypto";
+import { definition } from "@/lib/integrations/definitions";
+import { getAllIntegrations } from "@/lib/integrations/store";
+import { gatewayReady } from "@/lib/payments/gateway";
+import { getPaystackConfig } from "@/lib/payments/paystack";
 import { jsonSafe } from "@/lib/audit";
 import { runReconciliation } from "@/lib/commerce/jobs";
 import { getConfiguredCarrier } from "@/lib/commerce/shipments";
@@ -19,10 +24,17 @@ function probe(label: string, fn: () => string): Check {
 /** Configuration and dependency status. Reports presence and mode only, never secret values. */
 export async function systemStatus() {
   const settings = await getSettings();
+  const paystackMode = await getPaystackConfig().then((c) => (c.mode === "live" ? "LIVE key" : "Test key"), () => null);
+  const integrations = await getAllIntegrations();
   const env: Check[] = [
     { label: "Database (DATABASE_URL)", ok: Boolean(process.env.DATABASE_URL), detail: process.env.DATABASE_URL ? "Configured" : "Missing" },
-    probe("Paystack (PAYSTACK_SECRET_KEY)", () => `${getPaystackConfig().mode === "live" ? "LIVE" : "Test"} key configured`),
     { label: "Checkout allowed on this deployment (CHECKOUT_ENABLED)", ok: process.env.CHECKOUT_ENABLED === "true", detail: process.env.CHECKOUT_ENABLED === "true" ? "Yes" : "No: checkout returns 503 regardless of store settings" },
+    { label: "Secret storage (INTEGRATIONS_ENCRYPTION_KEY)", ok: canEncrypt(), detail: canEncrypt() ? "Configured: secrets can be saved in Integrations" : "Missing: secrets can only come from environment variables" },
+    ...integrations.map((i) => ({
+      label: definition(i.key).name,
+      ok: i.active,
+      detail: i.storageError ?? (i.active ? `Active${i.key === "paystack" && paystackMode ? ` (${paystackMode})` : ""}` : i.configured ? "Configured but switched off" : "Not configured"),
+    })),
     probe("Public URL (APP_BASE_URL)", () => getAppBaseUrl()),
     probe("Scheduled jobs (CRON_SECRET)", () => (getCronSecret(), "Configured")),
     { label: "Shipping carrier integration", ok: getConfiguredCarrier() !== null, detail: getConfiguredCarrier() ? "Configured" : "None: use manual shipments with a tracking number" },
@@ -37,8 +49,11 @@ export async function systemStatus() {
     database = { label: "Database connection", ok: false, detail: "Cannot reach the database" };
   }
 
-  const paystackReady = env[1].ok;
-  const checkoutLive = settings["checkout.open"] && env[2].ok && paystackReady;
+  const home = await prisma.market.findUnique({ where: { code: "NG" } }).catch(() => null);
+  const homeProvider = home?.paymentProvider ?? "paystack";
+  const gatewayOk = await gatewayReady(homeProvider);
+  const deploymentOk = process.env.CHECKOUT_ENABLED === "true";
+  const checkoutLive = settings["checkout.open"] && deploymentOk && gatewayOk;
   return {
     env,
     database,
@@ -47,8 +62,8 @@ export async function systemStatus() {
       live: checkoutLive,
       reasons: [
         !settings["checkout.open"] && "The store setting \"Store accepts orders\" is off.",
-        !env[2].ok && "CHECKOUT_ENABLED is not \"true\" on this deployment.",
-        !paystackReady && "No usable Paystack secret key.",
+        !deploymentOk && "CHECKOUT_ENABLED is not \"true\" on this deployment.",
+        !gatewayOk && `The Nigeria market's payment gateway (${definition(homeProvider === "whop" ? "whop" : "paystack").name}) is not ready.`,
       ].filter(Boolean) as string[],
     },
     jobs: await prisma.jobRun.findMany({ orderBy: { startedAt: "desc" }, take: 10 }),

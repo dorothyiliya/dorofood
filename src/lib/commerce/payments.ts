@@ -5,7 +5,9 @@ import { lockOrder, recordAudit } from "@/lib/audit";
 import { commitReservation, InsufficientStockError, releaseReservation, reserveInventory } from "@/lib/inventory";
 import { createRefundRecord, submitRefund } from "@/lib/commerce/refunds";
 import { CommerceError } from "@/lib/commerce/errors";
-import { verifyPaystackTransaction, type VerifiedPayment } from "@/lib/payments/paystack";
+import { deliverQueued, enqueueOrderConfirmed } from "@/lib/notifications";
+import { getGateway } from "@/lib/payments/gateway";
+import { asGatewayPayment, type VerifiedPayment } from "@/lib/payments/types";
 
 export type PaymentOutcome =
   | "UNKNOWN_REFERENCE"
@@ -32,12 +34,12 @@ export async function applyVerifiedPayment(verified: VerifiedPayment): Promise<{
   const result = await prisma.$transaction(async (tx) => {
     const locked = await tx.$queryRaw<{ id: string }[]>`
       SELECT id FROM "PaymentTransaction" WHERE "providerReference" = ${verified.reference} FOR UPDATE`;
-    if (locked.length !== 1) return { outcome: "UNKNOWN_REFERENCE" as const, refundIds: [] as string[] };
+    if (locked.length !== 1) return { outcome: "UNKNOWN_REFERENCE" as const, refundIds: [] as string[], notify: [] as string[] };
 
     const payment = await tx.paymentTransaction.findUniqueOrThrow({ where: { id: locked[0].id } });
     await lockOrder(tx, payment.orderId);
     const order = await tx.order.findUniqueOrThrow({ where: { id: payment.orderId }, include: { items: true, reservations: true } });
-    const done = (outcome: PaymentOutcome, refundIds: string[] = []) => ({ outcome, refundIds, orderNumber: order.orderNumber });
+    const done = (outcome: PaymentOutcome, refundIds: string[] = [], notify: string[] = []) => ({ outcome, refundIds, notify, orderNumber: order.orderNumber });
 
     if (!(OPEN_PAYMENT as readonly string[]).includes(payment.status)) return done("ALREADY_PROCESSED");
 
@@ -96,9 +98,10 @@ export async function applyVerifiedPayment(verified: VerifiedPayment): Promise<{
     }
     await tx.order.update({ where: { id: order.id }, data: { status: "CONFIRMED", confirmedAt: new Date(), cancelledAt: null } });
     await recordAudit(tx, { action: late ? "LATE_PAYMENT_CONFIRMED" : "PAYMENT_CONFIRMED", entityType: "Order", entityId: order.id, metadata: { reference: payment.providerReference, amountMinor: verified.amountMinor } });
-    return done(late ? "LATE_PAYMENT_CONFIRMED" : "CONFIRMED");
+    return done(late ? "LATE_PAYMENT_CONFIRMED" : "CONFIRMED", [], [await enqueueOrderConfirmed(tx, order.id)]);
   }, { maxWait: 20_000, timeout: 20_000 });
 
+  await deliverQueued(result.notify);
   for (const refundId of result.refundIds) {
     await submitRefund(refundId).catch((error) => console.error("[payments] refund submission failed", { refundId, error }));
   }
@@ -146,7 +149,10 @@ export async function confirmPaymentByReference(reference: string) {
   const payment = await prisma.paymentTransaction.findUnique({ where: { providerReference: reference }, include: { order: true } });
   if (!payment) throw new CommerceError("PAYMENT_NOT_FOUND", 404, "Payment not found.");
   const needsVerification = (OPEN_PAYMENT as readonly string[]).includes(payment.status);
-  if (needsVerification) await applyVerifiedPayment(await verifyPaystackTransaction(reference));
+  if (needsVerification) {
+    const gateway = await getGateway(payment.provider);
+    await applyVerifiedPayment(await gateway.verify(asGatewayPayment(payment)));
+  }
   const fresh = await prisma.paymentTransaction.findUniqueOrThrow({ where: { id: payment.id }, include: { order: true } });
   return { orderNumber: fresh.order.orderNumber, orderStatus: fresh.order.status, paymentStatus: fresh.status };
 }

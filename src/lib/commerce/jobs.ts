@@ -6,7 +6,9 @@ import { releaseReservation } from "@/lib/inventory";
 import { applyVerifiedPayment } from "@/lib/commerce/payments";
 import { submitRefund } from "@/lib/commerce/refunds";
 import { processPaymentEvent } from "@/lib/commerce/webhooks";
-import { ProviderUnavailableError, verifyPaystackTransaction } from "@/lib/payments/paystack";
+import { deliverPendingNotifications } from "@/lib/notifications";
+import { getGateway } from "@/lib/payments/gateway";
+import { asGatewayPayment, ProviderUnavailableError } from "@/lib/payments/types";
 
 /** How long past the payment window we keep stock held while Paystack is unreachable. */
 const PROVIDER_OUTAGE_GRACE_MS = 15 * 60_000;
@@ -19,7 +21,7 @@ const PROVIDER_OUTAGE_GRACE_MS = 15 * 60_000;
 export async function expireStaleOrders({ now = new Date(), limit = 50 } = {}) {
   const candidates = await prisma.order.findMany({
     where: { status: "PENDING_PAYMENT", paymentExpiresAt: { lt: now } },
-    select: { id: true, paymentExpiresAt: true, payments: { where: { status: { in: ["INITIATED", "PENDING", "FAILED"] } }, select: { providerReference: true } } },
+    select: { id: true, paymentExpiresAt: true, payments: { where: { status: { in: ["INITIATED", "PENDING", "FAILED"] } } } },
     orderBy: { paymentExpiresAt: "asc" },
     take: limit,
   });
@@ -28,7 +30,7 @@ export async function expireStaleOrders({ now = new Date(), limit = 50 } = {}) {
   candidates: for (const candidate of candidates) {
     for (const payment of candidate.payments) {
       try {
-        const verified = await verifyPaystackTransaction(payment.providerReference);
+        const verified = await (await getGateway(payment.provider)).verify(asGatewayPayment(payment));
         if (verified.status === "success") {
           await applyVerifiedPayment(verified);
           confirmed++;
@@ -71,14 +73,13 @@ export async function reconcileOpenPayments({ olderThanMinutes = 10, lookbackDay
       status: { in: ["INITIATED", "PENDING", "FAILED"] },
       createdAt: { lt: new Date(now - olderThanMinutes * 60_000), gt: new Date(now - lookbackDays * 86_400_000) },
     },
-    select: { providerReference: true },
     orderBy: { createdAt: "asc" },
     take: limit,
   });
   const outcomes: Record<string, number> = {};
   for (const payment of payments) {
     try {
-      const { outcome } = await applyVerifiedPayment(await verifyPaystackTransaction(payment.providerReference));
+      const { outcome } = await applyVerifiedPayment(await (await getGateway(payment.provider)).verify(asGatewayPayment(payment)));
       outcomes[outcome] = (outcomes[outcome] ?? 0) + 1;
     } catch (error) {
       outcomes.ERROR = (outcomes.ERROR ?? 0) + 1;
@@ -112,5 +113,6 @@ export async function runReconciliation() {
     payments: await reconcileOpenPayments(),
     expiry: await expireStaleOrders(),
     refunds: await sendUnsentRefunds(),
+    emails: await deliverPendingNotifications(),
   };
 }

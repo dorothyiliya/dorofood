@@ -4,7 +4,7 @@ import { unstable_rethrow } from "next/navigation";
 import { ZodError } from "zod";
 import { ConfigError } from "@/lib/env";
 import { CommerceError } from "@/lib/commerce/errors";
-import { ProviderRejectedError, ProviderUnavailableError } from "@/lib/payments/paystack";
+import { ProviderRejectedError, ProviderUnavailableError } from "@/lib/payments/types";
 import { requireStaff, SessionExpiredError } from "@/lib/admin/session";
 import type { Permission, SessionStaff } from "@/lib/admin/auth";
 
@@ -15,7 +15,7 @@ import type { Permission, SessionStaff } from "@/lib/admin/auth";
  * maps the admin host's clean paths, so the browser must do the navigation.
  */
 export type ActionState = { ok: boolean; message: string; at: number; redirectTo?: string } | null;
-export type ActionResult = string | { message: string; redirectTo?: string };
+export type ActionResult = string | { message: string; redirectTo?: string; ok?: boolean };
 
 /**
  * Wraps every admin mutation: re-authenticates, checks the permission, and turns
@@ -25,12 +25,12 @@ export type ActionResult = string | { message: string; redirectTo?: string };
 export async function adminAction(
   permission: Permission,
   fn: (staff: SessionStaff) => Promise<ActionResult>,
-  options: { storefront?: boolean } = {},
+  options: { storefront?: boolean; revalidate?: boolean } = {},
 ): Promise<ActionState> {
   try {
     const staff = await requireStaff(permission);
     const result = await fn(staff);
-    revalidatePath("/admin", "layout");
+    if (options.revalidate !== false) revalidatePath("/admin", "layout");
     if (options.storefront) revalidatePath("/");
     return typeof result === "string" ? { ok: true, message: result, at: Date.now() } : { ok: true, ...result, at: Date.now() };
   } catch (error) {
@@ -49,8 +49,8 @@ function describe(error: unknown): string {
   }
   if (error instanceof RangeError) return error.message;
   if (error instanceof ConfigError) return `Not configured: ${error.message}`;
-  if (error instanceof ProviderUnavailableError) return "Paystack could not be reached. Nothing was changed; try again shortly.";
-  if (error instanceof ProviderRejectedError) return `Paystack rejected the request: ${error.message}`;
+  if (error instanceof ProviderUnavailableError) return "The provider could not be reached. Nothing was changed; try again shortly.";
+  if (error instanceof ProviderRejectedError) return `The provider rejected the request: ${error.message}`;
   console.error("[admin] action failed", error);
   return "Something went wrong. Nothing was changed.";
 }

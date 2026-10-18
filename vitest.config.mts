@@ -9,7 +9,7 @@ export default defineConfig({
   test: {
     environment: "node",
     projects: [
-      { extends: true, test: { name: "unit", include: ["test/unit/**/*.test.ts"] } },
+      { extends: true, test: { name: "unit", include: ["test/unit/**/*.test.ts"], setupFiles: ["test/support/hermetic-env.ts"] } },
       {
         extends: true,
         test: {
