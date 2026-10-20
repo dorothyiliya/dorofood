@@ -43,15 +43,22 @@ export function detectImageType(bytes: Uint8Array): ImageType | null {
   return null;
 }
 
+/**
+ * Signs with SigV4, then sends with a plain fetch carrying the bytes directly.
+ * aws4fetch's own fetch() passes a Request object with a body to the global
+ * fetch, and inside Next.js (which patches fetch) such uploads hang until they
+ * time out.
+ */
+async function s3(config: StorageConfig, method: "PUT" | "DELETE", key: string, init: { body?: Uint8Array<ArrayBuffer> | string; headers?: Record<string, string>; timeoutMs: number }) {
+  const url = `${config.endpoint}/${config.bucket}/${key}`;
+  const signed = await config.client.sign(url, { method, headers: init.headers, body: init.body });
+  return fetch(url, { method, headers: signed.headers, body: init.body, signal: AbortSignal.timeout(init.timeoutMs), cache: "no-store" });
+}
+
 async function put(config: StorageConfig, key: string, body: Uint8Array<ArrayBuffer> | string, contentType: string, cacheControl: string) {
   let response: Response;
   try {
-    response = await config.client.fetch(`${config.endpoint}/${config.bucket}/${key}`, {
-      method: "PUT",
-      body,
-      headers: { "Content-Type": contentType, "Cache-Control": cacheControl },
-      signal: AbortSignal.timeout(30_000),
-    });
+    response = await s3(config, "PUT", key, { body, headers: { "Content-Type": contentType, "Cache-Control": cacheControl }, timeoutMs: 30_000 });
   } catch (error) {
     throw new ProviderUnavailableError(`Storage request failed: ${(error as Error).message}`);
   }
@@ -81,7 +88,7 @@ export async function testStorage() {
   const key = `healthchecks/${randomUUID()}.txt`;
   await put(config, key, "ok", "text/plain", "no-store");
   try {
-    await config.client.fetch(`${config.endpoint}/${config.bucket}/${key}`, { method: "DELETE", signal: AbortSignal.timeout(15_000) });
+    await s3(config, "DELETE", key, { timeoutMs: 15_000 });
   } catch {
     // The write succeeded, which is what matters; a leftover 2-byte file is harmless.
   }

@@ -49,7 +49,10 @@ function describe(error: unknown): string {
   }
   if (error instanceof RangeError) return error.message;
   if (error instanceof ConfigError) return `Not configured: ${error.message}`;
-  if (error instanceof ProviderUnavailableError) return "The provider could not be reached. Nothing was changed; try again shortly.";
+  if (error instanceof ProviderUnavailableError) {
+    console.warn("[admin] provider unavailable", error.message); // no secrets in these messages; makes outages diagnosable
+    return "The provider could not be reached. Nothing was changed; try again shortly.";
+  }
   if (error instanceof ProviderRejectedError) return `The provider rejected the request: ${error.message}`;
   console.error("[admin] action failed", error);
   return "Something went wrong. Nothing was changed.";
