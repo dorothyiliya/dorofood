@@ -72,7 +72,7 @@ export default async function MarketsPage() {
 function MarketFields({ market, providers, defaultProvider }: { market?: { code: string; name: string; countryCode: string; currency: string; status: string; paymentProvider: string }; providers: [string, string][]; defaultProvider: string }) {
   return (
     <>
-      <Field label="Code"><input name="code" required defaultValue={market?.code} className={`${inputClass} sm:!w-24 uppercase`} /></Field>
+      <Field label="Code" help="Letters/numbers, e.g. NGUSD"><input name="code" required defaultValue={market?.code} maxLength={12} pattern="[A-Za-z][A-Za-z0-9]{1,11}" title="2-12 letters or numbers, starting with a letter (for example NG, NGUSD or OTHER)" className={`${inputClass} sm:!w-32 uppercase`} /></Field>
       <Field label="Name"><input name="name" required defaultValue={market?.name} className={inputClass} /></Field>
       <Field label="Country"><input name="countryCode" required maxLength={2} defaultValue={market?.countryCode} className={`${inputClass} sm:!w-20 uppercase`} /></Field>
       <Field label="Currency"><Select name="currency" options={CURRENCIES.map((c) => [c, c])} defaultValue={market?.currency ?? "NGN"} /></Field>

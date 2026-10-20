@@ -40,7 +40,7 @@ export async function saveMarketAction(_: ActionState, form: FormData) {
   return adminAction("markets.manage", async (staff) => {
     const marketId = text(form, "marketId", 64) || null;
     await saveMarket(marketId, {
-      code: text(form, "code", 8), name: text(form, "name", 80), countryCode: text(form, "countryCode", 2),
+      code: text(form, "code", 40), name: text(form, "name", 80), countryCode: text(form, "countryCode", 2),
       currency: oneOf(form, "currency", ["NGN", "GBP", "USD", "CAD", "EUR"] as const), status: oneOf(form, "status", ["ACTIVE", "PAUSED"] as const),
       paymentProvider: oneOf(form, "paymentProvider", PAYMENT_PROVIDERS),
     }, staff.id);

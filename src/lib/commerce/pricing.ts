@@ -4,7 +4,9 @@ import type { Prisma } from "@prisma/client";
 import { CommerceError } from "@/lib/commerce/errors";
 
 /** Markets are managed in the admin; the code only has to look like one. Existence is checked against the database. */
-export const marketCodeSchema = z.string().trim().toUpperCase().regex(/^[A-Z]{2,8}$/, "Unknown market.");
+/** Market codes: a letter, then letters or digits, 2-12 characters (NG, NGUSD, OTHER, EU2). */
+export const MARKET_CODE = /^[A-Z][A-Z0-9]{1,11}$/;
+export const marketCodeSchema = z.string().trim().toUpperCase().regex(MARKET_CODE, "Unknown market.");
 export const countryCodeSchema = z.string().trim().regex(/^[A-Za-z]{2}$/, "Use a two-letter ISO country code.").transform((v) => v.toUpperCase());
 export const cartItemsSchema = z.array(z.object({
   variantId: z.string().trim().min(1).max(64),

@@ -169,6 +169,14 @@ describe("catalogue, markets and shipping", () => {
     expect((await api.checkout(checkoutBody([{ variantId: variant.id, quantity: 2 }]))).status).toBe(201);
   });
 
+  it("market codes may contain digits but must start with a letter and stay short", async () => {
+    const base = { name: "Test", countryCode: "NG", currency: "NGN" as const, status: "PAUSED" as const };
+    await expect(saveMarket(null, { ...base, code: "jimmy1105" }, "staff")).resolves.toMatchObject({ code: "JIMMY1105" });
+    for (const code of ["1NG", "N", "NG-USD", "ABCDEFGHIJKLM"]) {
+      await expect(saveMarket(null, { ...base, code }, "staff")).rejects.toThrow(/2-12 letters or numbers/);
+    }
+  });
+
   it("new markets work at checkout once they have prices and an enabled, priced shipping rule", async () => {
     const f = await seedFixture();
     // Without a gateway named, a new market uses Whop, which is not set up in this test.

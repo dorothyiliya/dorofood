@@ -5,11 +5,12 @@ import { recordAudit } from "@/lib/audit";
 import { CommerceError, isUniqueViolation } from "@/lib/commerce/errors";
 import { DEFAULT_PAYMENT_PROVIDER, definition, PAYMENT_PROVIDERS } from "@/lib/integrations/definitions";
 import { gatewayReady } from "@/lib/payments/gateway";
+import { MARKET_CODE } from "@/lib/commerce/pricing";
 
 const country = z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/, "Use a two-letter ISO country code.");
 
 export const marketSchema = z.object({
-  code: z.string().trim().toUpperCase().regex(/^[A-Z]{2,8}$/, "Use 2-8 capital letters."),
+  code: z.string().trim().toUpperCase().regex(MARKET_CODE, "Use 2-12 letters or numbers, starting with a letter (for example NG, NGUSD or OTHER)."),
   name: z.string().trim().min(2).max(80),
   countryCode: country,
   currency: z.enum(["NGN", "GBP", "USD", "CAD", "EUR"]),
