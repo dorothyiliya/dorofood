@@ -57,6 +57,11 @@ describe("Whop webhook signatures (Standard Webhooks)", () => {
     const secret = `whsec_${raw.toString("base64")}`;
     expect(verifyWhopWebhook(body, { id: "msg_1", timestamp: ts, signature: `v1,bm9wZQ== ${sign(raw)}` }, secret, now).ok).toBe(true);
   });
+  it("accepts a whsec_ secret keyed as the whole string, as Whop's SDK does", () => {
+    const secret = `whsec_${randomBytes(24).toString("base64")}`;
+    expect(verifyWhopWebhook(body, { id: "msg_1", timestamp: ts, signature: sign(Buffer.from(secret, "utf8")) }, secret, now).ok).toBe(true);
+    expect(verifyWhopWebhook(body, { id: "msg_1", timestamp: ts, signature: sign(Buffer.from("whsec_other", "utf8")) }, secret, now).ok).toBe(false);
+  });
   it("rejects a replayed delivery outside five minutes, and a different message id", () => {
     const secret = "ws_abc123";
     const old = String(Math.floor(now / 1000) - 301);

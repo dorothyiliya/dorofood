@@ -163,20 +163,24 @@ export async function refundWhopPayment(input: { payment: GatewayPayment; amount
 /**
  * Standard Webhooks verification as Whop documents it: HMAC-SHA256 over
  * "{webhook-id}.{webhook-timestamp}.{raw body}", keyed with the signing secret
- * exactly as issued ("ws_…"); "whsec_" secrets use the spec's base64 key.
+ * exactly as issued. Whop's SDK keys with the whole secret string whatever its
+ * prefix; the Standard Webhooks spec keys a "whsec_" secret with its base64
+ * body. Both keys derive from the same secret, so either is accepted.
  * Timestamps more than five minutes from now are rejected (replay protection).
  */
 export function verifyWhopWebhook(rawBody: string, headers: { id: string | null; timestamp: string | null; signature: string | null }, secret: string, now = Date.now()) {
   if (!headers.id || !headers.timestamp || !headers.signature) return { ok: false as const, reason: "missing headers" };
   const ts = Number(headers.timestamp);
   if (!Number.isFinite(ts) || Math.abs(now / 1000 - ts) > 300) return { ok: false as const, reason: "timestamp outside tolerance" };
-  const key = secret.startsWith("whsec_") ? Buffer.from(secret.slice(6), "base64") : Buffer.from(secret, "utf8");
-  const expected = createHmac("sha256", key).update(`${headers.id}.${headers.timestamp}.${rawBody}`).digest();
+  const keys = [Buffer.from(secret, "utf8")];
+  if (secret.startsWith("whsec_")) keys.push(Buffer.from(secret.slice(6), "base64"));
+  const signed = `${headers.id}.${headers.timestamp}.${rawBody}`;
+  const expected = keys.map((key) => createHmac("sha256", key).update(signed).digest());
   const matches = headers.signature.split(" ").some((part) => {
     const [version, value] = part.split(",");
     if (version !== "v1" || !value) return false;
     const received = Buffer.from(value, "base64");
-    return received.length === expected.length && timingSafeEqual(received, expected);
+    return expected.some((e) => received.length === e.length && timingSafeEqual(received, e));
   });
   return matches ? { ok: true as const } : { ok: false as const, reason: "signature mismatch" };
 }
