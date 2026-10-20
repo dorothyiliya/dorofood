@@ -20,6 +20,9 @@ const MESSAGES: Record<string, string> = {
   INVALID_CHECKOUT: "Please check the highlighted details.",
 };
 
+const regionNames = (() => { try { return new Intl.DisplayNames(["en"], { type: "region" }); } catch { return null; } })();
+const countryName = (code: string) => regionNames?.of(code) ?? code;
+
 function newKey() {
   return `web_${crypto.randomUUID().replace(/-/g, "")}`;
 }
@@ -46,13 +49,18 @@ export function CheckoutForm() {
   const [key, setKey] = useState("");
   useEffect(() => setKey(newKey()), []);
 
+  // A market can deliver to several countries ("Rest of the world"): the shopper picks theirs.
+  const countries = market.countries;
+  const defaultCountry = countries.find((c) => c.code === market.countryCode)?.code ?? countries[0]?.code ?? market.countryCode;
+  const [country, setCountry] = useState(defaultCountry);
+  useEffect(() => setCountry(defaultCountry), [defaultCountry]);
   const items = useMemo(() => lines.map((l) => ({ variantId: l.product.id, quantity: l.quantity })), [lines]);
   const blocked = lines.some((l) => !canShip(l.product));
 
   useEffect(() => {
     if (!checkoutLive || items.length === 0 || blocked) return;
     let cancelled = false;
-    fetch("/api/v1/checkout/quotes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ market: market.code, countryCode: market.countryCode, items }) })
+    fetch("/api/v1/checkout/quotes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ market: market.code, countryCode: country, items }) })
       .then(async (r) => ({ ok: r.ok, body: await r.json() }))
       .then(({ ok, body }) => {
         if (cancelled) return;
@@ -60,7 +68,7 @@ export function CheckoutForm() {
       })
       .catch(() => !cancelled && setProblem({ code: "NETWORK", message: "We could not load delivery prices. Check your connection." }));
     return () => { cancelled = true; };
-  }, [checkoutLive, items, market.code, market.countryCode, blocked]);
+  }, [checkoutLive, items, market.code, country, blocked]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -77,7 +85,7 @@ export function CheckoutForm() {
           email: get("email"),
           phone: get("phone") || undefined,
           market: market.code,
-          shippingAddress: { recipient: get("recipient"), phone: get("phone"), line1: get("line1"), line2: get("line2") || undefined, city: get("city"), region: get("region") || undefined, postalCode: get("postalCode") || undefined, countryCode: market.countryCode },
+          shippingAddress: { recipient: get("recipient"), phone: get("phone"), line1: get("line1"), line2: get("line2") || undefined, city: get("city"), region: get("region") || undefined, postalCode: get("postalCode") || undefined, countryCode: country },
           items,
           customerNote: get("note") || undefined,
         }),
@@ -128,7 +136,7 @@ export function CheckoutForm() {
       </ul>
       <dl className="mt-6 space-y-2 border-t border-line pt-5 text-sm">
         <div className="flex justify-between"><dt className="text-ink-soft">Subtotal</dt><dd className="tabular-nums">{quote ? formatMoney(quote.subtotalMinor, quote.currency) : "…"}</dd></div>
-        <div className="flex justify-between"><dt className="text-ink-soft">Delivery to {market.name}</dt><dd className="tabular-nums">{quote ? formatMoney(quote.shippingMinor, quote.currency) : "…"}</dd></div>
+        <div className="flex justify-between"><dt className="text-ink-soft">Delivery to {countries.length > 1 ? countryName(country) : market.name}</dt><dd className="tabular-nums">{quote ? formatMoney(quote.shippingMinor, quote.currency) : "…"}</dd></div>
         <div className="flex justify-between border-t border-line pt-3 text-base font-semibold"><dt>Total</dt><dd className="tabular-nums">{quote ? formatMoney(quote.totalMinor, quote.currency) : "…"}</dd></div>
       </dl>
       <p className="mt-4 text-xs text-ink-soft">Prices are confirmed by our server. You pay on our payment provider&apos;s secure page.</p>
@@ -167,10 +175,17 @@ export function CheckoutForm() {
         <fieldset className="space-y-4">
           <legend className="mb-2 font-display text-xl font-semibold">Contact</legend>
           <Field label="Email" name="email" error={fieldErrors.email}><input id="email" name="email" type="email" required autoComplete="email" className={field} /></Field>
-          <Field label="Phone" name="phone"><input id="phone" name="phone" type="tel" required autoComplete="tel" placeholder="+234" className={field} /></Field>
+          <Field label="Phone" name="phone"><input id="phone" name="phone" type="tel" required autoComplete="tel" placeholder={country === "NG" ? "+234" : "+"} className={field} /></Field>
         </fieldset>
         <fieldset className="space-y-4">
           <legend className="mb-2 font-display text-xl font-semibold">Delivery address</legend>
+          {countries.length > 1 && (
+            <Field label="Country" name="country">
+              <select id="country" value={country} onChange={(e) => setCountry(e.target.value)} autoComplete="country" className={field}>
+                {countries.map((c) => <option key={c.code} value={c.code}>{countryName(c.code)}</option>)}
+              </select>
+            </Field>
+          )}
           <Field label="Full name" name="recipient"><input id="recipient" name="recipient" required autoComplete="name" className={field} /></Field>
           <Field label="Address" name="line1"><input id="line1" name="line1" required autoComplete="address-line1" className={field} /></Field>
           <Field label="Apartment, landmark (optional)" name="line2"><input id="line2" name="line2" autoComplete="address-line2" className={field} /></Field>

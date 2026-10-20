@@ -5,11 +5,13 @@ import { usePathname, useRouter } from "next/navigation";
 import { CaretDown, MagnifyingGlass, X } from "@phosphor-icons/react/dist/ssr";
 import type { CategorySummary, Product } from "@/lib/catalogue";
 import { ProductCard } from "@/components/shop/product-card";
+import { useShop } from "@/components/shop/shop-provider";
 
 export const SORTS = { featured: "Featured", new: "Newest", "price-asc": "Price: low to high", "price-desc": "Price: high to low", name: "Name A to Z" } as const;
 export type SortKey = keyof typeof SORTS;
 
 export function ShopBrowser({ products, categories, initial }: { products: Product[]; categories: CategorySummary[]; initial: { category: string; q: string; sort: SortKey } }) {
+  const { priceOf } = useShop();
   const router = useRouter();
   const pathname = usePathname();
   const [category, setCategory] = useState(initial.category);
@@ -32,13 +34,20 @@ export function ShopBrowser({ products, categories, initial }: { products: Produ
       && (!needle || `${p.name} ${p.brand} ${p.category} ${p.description} ${p.size}`.toLowerCase().includes(needle)));
     const sorted = [...list];
     if (sort === "new") sorted.sort((a, b) => b.addedAt.localeCompare(a.addedAt));
-    if (sort === "price-asc") sorted.sort((a, b) => a.priceKobo - b.priceKobo);
-    if (sort === "price-desc") sorted.sort((a, b) => b.priceKobo - a.priceKobo);
+    // Prices in the shopper's market; products not sold there go last.
+    const price = (p: Product) => priceOf(p)?.minor ?? null;
+    const byPrice = (dir: 1 | -1) => (a: Product, b: Product) => {
+      const pa = price(a), pb = price(b);
+      if (pa === null || pb === null) return Number(pa === null) - Number(pb === null);
+      return (pa - pb) * dir;
+    };
+    if (sort === "price-asc") sorted.sort(byPrice(1));
+    if (sort === "price-desc") sorted.sort(byPrice(-1));
     if (sort === "name") sorted.sort((a, b) => a.name.localeCompare(b.name));
     // Featured: in stock first, then the catalogue order.
     if (sort === "featured") sorted.sort((a, b) => Number(b.available) - Number(a.available));
     return sorted;
-  }, [products, category, q, sort]);
+  }, [products, category, q, sort, priceOf]);
 
   const current = categories.find((c) => c.slug === category);
   const chip = (active: boolean) => `whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition ${active ? "bg-ink text-canvas" : "bg-surface text-ink-soft ring-1 ring-line hover:text-ink"}`;

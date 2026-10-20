@@ -15,7 +15,10 @@ type ShopContext = {
   setMarket: (code: string) => void;
   lines: BagLine[];
   count: number;
-  subtotalKobo: number;
+  /** Bag subtotal in the selected market's currency, for items priced there. */
+  subtotalMinor: number;
+  /** A product's price in the selected market, or null if it is not sold there. */
+  priceOf: (product: Product) => { minor: number; compareAt?: number; currency: string } | null;
   add: (productId: string, quantity?: number) => boolean;
   setQuantity: (productId: string, quantity: number) => void;
   clear: () => void;
@@ -73,8 +76,12 @@ export function ShopProvider({ products, markets, homeMarket, checkoutLive, prev
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
   // Lines for products that no longer exist (removed from the catalogue) are dropped.
   const lines = useMemo(() => stored.flatMap((l) => (byId.has(l.id) ? [{ product: byId.get(l.id)!, quantity: l.quantity }] : [])), [stored, byId]);
-  const market = markets.find((m) => m.code === marketCode) ?? markets[0] ?? { code: homeMarket, name: homeMarket, currency: "NGN", countryCode: homeMarket, delivers: false, flatRateMinor: null };
+  const market = markets.find((m) => m.code === marketCode) ?? markets[0] ?? { code: homeMarket, name: homeMarket, currency: "NGN", countryCode: homeMarket, delivers: false, flatRateMinor: null, countries: [] };
   const canShip = useCallback((p: Product) => p.shipsTo.includes(market.code), [market.code]);
+  const priceOf = useCallback((p: Product) => {
+    const price = p.prices[market.code];
+    return price ? { ...price, currency: market.currency } : null;
+  }, [market.code, market.currency]);
 
   const announce = useCallback((text: string) => {
     setMessage("");
@@ -107,7 +114,8 @@ export function ShopProvider({ products, markets, homeMarket, checkoutLive, prev
     products, markets, market, homeMarket, setMarket: setMarketCode,
     lines,
     count: lines.reduce((s, l) => s + l.quantity, 0),
-    subtotalKobo: lines.reduce((s, l) => s + l.product.priceKobo * l.quantity, 0),
+    subtotalMinor: lines.reduce((s, l) => s + (priceOf(l.product)?.minor ?? 0) * l.quantity, 0),
+    priceOf,
     add, setQuantity, clear,
     bagOpen, openBag, closeBag,
     announce, canShip, checkoutLive, previewMode,

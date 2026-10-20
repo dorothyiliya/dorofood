@@ -13,8 +13,11 @@ export type Product = {
   category: string;
   categorySlug: string;
   size: string;
+  /** Price in the home market (naira), used when a product has no price in the shopper's market. */
   priceKobo: number;
   compareAtKobo?: number;
+  /** Price per market code, in that market's currency (minor units). */
+  prices: Record<string, { minor: number; compareAt?: number }>;
   description: string;
   images: ProductImage[];
   /** Illustrated pack colours, used when there is no photo. */
@@ -73,7 +76,17 @@ export function formatNaira(amountKobo: number) {
   return new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 0 }).format(amountKobo / 100);
 }
 
-type Sample = Omit<Product, "pack" | "icon" | "categorySlug" | "images" | "shipsTo" | "available" | "addedAt" | "origin">;
+/** Naira without kobo (how Nigerian shoppers read prices); every other currency with cents. */
+export function formatPrice(minor: number, currency: string) {
+  if (currency === "NGN") return formatNaira(minor);
+  try {
+    return new Intl.NumberFormat("en-NG", { style: "currency", currency, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(minor / 100);
+  } catch {
+    return `${currency} ${(minor / 100).toFixed(2)}`;
+  }
+}
+
+type Sample = Omit<Product, "pack" | "icon" | "categorySlug" | "images" | "shipsTo" | "prices" | "available" | "addedAt" | "origin">;
 
 const SAMPLES: Sample[] = [
   { id: "p-001", slug: "golden-plantain-crisps", name: "Golden Plantain Crisps", brand: "Dorocity Select", category: "Snacks", size: "150 g", priceKobo: 185000, description: "Thin-cut, golden plantain crisps for the moments between meals." },
@@ -95,6 +108,7 @@ export const sampleProducts: Product[] = SAMPLES.map((p, i) => ({
   icon: categoryIcon(p.category),
   origin: "NG",
   shipsTo: ["NG"],
+  prices: { NG: { minor: p.priceKobo } },
   available: true,
   addedAt: new Date(Date.UTC(2026, 0, 1 + i)).toISOString(),
 }));

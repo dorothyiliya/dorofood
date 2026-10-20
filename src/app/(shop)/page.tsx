@@ -1,9 +1,8 @@
 import Link from "next/link";
 import { ArrowRight, Globe, Package, ShieldCheck, Truck } from "@phosphor-icons/react/dist/ssr";
 import { BRAND } from "@/lib/brand";
-import { formatNaira, type CategorySummary, type Product } from "@/lib/catalogue";
+import { formatPrice, type CategorySummary, type Product } from "@/lib/catalogue";
 import { loadStorefront, type MarketSummary } from "@/lib/storefront-data";
-import { formatMoney } from "@/lib/money";
 import { CategoryGlyph, ProductArt } from "@/components/shop/product-art";
 import { ProductCard } from "@/components/shop/product-card";
 import { ProductRail } from "@/components/shop/product-rail";
@@ -163,6 +162,7 @@ function Spotlight({ category, products }: { category: CategorySummary; products
 }
 
 function Delivery({ markets, homeMarket, contactEmail }: { markets: MarketSummary[]; homeMarket: string; contactEmail: string }) {
+  const homeCountry = markets.find((m) => m.code === homeMarket)?.countryCode ?? "NG";
   return (
     <section id="delivery" className={`${container} scroll-mt-32 pt-24`}>
       <div className="grid gap-10 lg:grid-cols-[1fr_1.2fr] lg:gap-16">
@@ -177,14 +177,14 @@ function Delivery({ markets, homeMarket, contactEmail }: { markets: MarketSummar
           {markets.map((m) => (
             <li key={m.code} className="flex items-center justify-between gap-4 px-6 py-5">
               <div className="flex items-center gap-4">
-                <span className="grid h-10 w-10 place-items-center rounded-full bg-sunken text-xs font-bold tracking-wide">{m.countryCode}</span>
+                <span className="grid h-10 w-10 place-items-center rounded-full bg-sunken text-xs font-bold tracking-wide">{m.countries.length > 1 ? <Globe size={18} aria-hidden="true" /> : m.countryCode}</span>
                 <div>
                   <p className="font-semibold">{m.name}</p>
-                  <p className="text-sm text-ink-soft">{m.code === homeMarket ? "Nationwide orders" : "Export-cleared items only"}</p>
+                  <p className="text-sm text-ink-soft">{m.countryCode === homeCountry ? `Nationwide orders, priced in ${m.currency}` : `Export-cleared items only, priced in ${m.currency}`}</p>
                 </div>
               </div>
               {m.delivers && m.flatRateMinor
-                ? <p className="text-right text-sm"><span className="font-semibold tabular-nums">{m.currency === "NGN" ? formatNaira(Number(m.flatRateMinor)) : formatMoney(m.flatRateMinor, m.currency)}</span><span className="block text-ink-soft">per order</span></p>
+                ? <p className="text-right text-sm"><span className="font-semibold tabular-nums">{m.countries.length > 1 ? "From " : ""}{formatPrice(m.countries.length > 1 ? Math.min(...m.countries.map((c) => Number(c.flatRateMinor))) : Number(m.flatRateMinor), m.currency)}</span><span className="block text-ink-soft">per order</span></p>
                 : <p className="rounded-full bg-sunken px-3 py-1 text-sm font-medium text-ink-soft">Not yet available</p>}
             </li>
           ))}

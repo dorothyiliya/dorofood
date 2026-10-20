@@ -3,7 +3,8 @@ import { loadStorefront } from "@/lib/storefront-data";
 import { addProductImage, makePrimaryImage, saveMarketPrice } from "@/lib/admin/catalogue";
 import { changeStock } from "@/lib/admin/stock";
 import { updateSettings } from "@/lib/settings";
-import { prisma, seedFixture, setupIntegrationHarness } from "../support/harness";
+import { saveMarket, saveShippingRule } from "@/lib/admin/markets";
+import { api, checkoutBody, orderByNumber, prisma, seedFixture, setupIntegrationHarness } from "../support/harness";
 
 setupIntegrationHarness();
 
@@ -29,6 +30,42 @@ describe("storefront reflects the admin", () => {
     await saveMarketPrice(f.crisps, ng.id, { priceMinor: BigInt(199000), compareAtMinor: BigInt(250000), exportEligible: false, minShelfLifeDays: null, status: "ACTIVE" }, "staff");
     const after = (await loadStorefront()).products.find((p) => p.id === f.crisps)!;
     expect(after).toMatchObject({ priceKobo: 199000, compareAtKobo: 250000, available: true });
+  });
+
+  it("Nigeria in naira or dollars, and one dollar market for the rest of the world", async () => {
+    const f = await seedFixture();
+    const usd = { currency: "USD" as const, status: "ACTIVE" as const, paymentProvider: "paystack" as const };
+    const ngUsd = await saveMarket(null, { code: "NGUSD", name: "Nigeria (pay in USD)", countryCode: "NG", ...usd }, "staff");
+    const world = await saveMarket(null, { code: "OTHER", name: "Rest of the world", countryCode: "US", ...usd }, "staff");
+    const rule = { providerCode: "DHL", enabled: true, minOrderMinor: null, maxWeightGrams: null };
+    await saveShippingRule(ngUsd.id, null, { ...rule, countryCode: "NG", flatRateMinor: BigInt(500) }, "staff");
+    await saveShippingRule(world.id, null, { ...rule, countryCode: "US", flatRateMinor: BigInt(2500) }, "staff");
+    await saveShippingRule(world.id, null, { ...rule, countryCode: "CA", flatRateMinor: BigInt(3000) }, "staff");
+    const price = { compareAtMinor: null, minShelfLifeDays: null, status: "ACTIVE" as const };
+    await saveMarketPrice(f.crisps, ngUsd.id, { ...price, priceMinor: BigInt(1200), exportEligible: false }, "staff");
+    await saveMarketPrice(f.tea, world.id, { ...price, priceMinor: BigInt(1500), exportEligible: true }, "staff");
+
+    const data = await loadStorefront();
+    const crisps = data.products.find((p) => p.id === f.crisps)!;
+    const tea = data.products.find((p) => p.id === f.tea)!;
+    expect(crisps.prices).toMatchObject({ NG: { minor: 185000 }, NGUSD: { minor: 1200 } });
+    expect(crisps.shipsTo).toContain("NGUSD"); // domestic: no export clearance needed
+    expect(crisps.shipsTo).not.toContain("OTHER");
+    expect(tea.prices.OTHER).toEqual({ minor: 1500 });
+    expect(data.markets.find((m) => m.code === "OTHER")).toMatchObject({ currency: "USD", countries: [{ code: "CA", flatRateMinor: "3000" }, { code: "US", flatRateMinor: "2500" }] });
+
+    const naija = await api.checkout(checkoutBody([{ variantId: f.crisps, quantity: 1 }], { market: "NGUSD", countryCode: "NG" }));
+    expect(naija.status).toBe(201);
+    expect(naija.body).toMatchObject({ currency: "USD", totalMinor: "1700" });
+    expect((await orderByNumber(naija.body.orderNumber)).requiresExport).toBe(false);
+
+    const canada = await api.checkout(checkoutBody([{ variantId: f.tea, quantity: 1 }], { market: "OTHER", countryCode: "CA" }));
+    expect(canada.status).toBe(201);
+    expect(canada.body).toMatchObject({ currency: "USD", totalMinor: "4500" });
+    expect(await orderByNumber(canada.body.orderNumber)).toMatchObject({ destinationCountry: "CA", requiresExport: true });
+
+    const nowhere = await api.checkout(checkoutBody([{ variantId: f.tea, quantity: 1 }], { market: "OTHER", countryCode: "FR" }));
+    expect(nowhere.status).toBeGreaterThanOrEqual(400);
   });
 
   it("reports checkout as live only when every switch is on", async () => {

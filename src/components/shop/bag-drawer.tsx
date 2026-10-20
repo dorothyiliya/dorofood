@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { Minus, Plus, Tote, Trash, X } from "@phosphor-icons/react/dist/ssr";
-import { formatNaira } from "@/lib/catalogue";
+import { formatPrice } from "@/lib/catalogue";
 import { ProductArt } from "@/components/shop/product-art";
 import { MAX_QUANTITY, useShop } from "@/components/shop/shop-provider";
 
@@ -19,7 +19,7 @@ export function QuantityStepper({ value, onChange, label, max = MAX_QUANTITY }: 
 }
 
 export function BagDrawer() {
-  const { bagOpen, closeBag, lines, count, subtotalKobo, setQuantity, checkoutLive, canShip, market } = useShop();
+  const { bagOpen, closeBag, lines, count, subtotalMinor, priceOf, setQuantity, checkoutLive, canShip, market } = useShop();
   const closeRef = useRef<HTMLButtonElement>(null);
   const unshippable = lines.filter((l) => !canShip(l.product));
 
@@ -63,7 +63,7 @@ export function BagDrawer() {
                         <Link href={`/products/${product.slug}`} onClick={closeBag} className="line-clamp-2 text-sm font-medium hover:underline">{product.name}</Link>
                         <p className="text-xs text-ink-faint">{product.size}</p>
                       </div>
-                      <p className="text-sm font-semibold tabular-nums">{formatNaira(product.priceKobo * quantity)}</p>
+                      <p className="text-sm font-semibold tabular-nums">{(() => { const price = priceOf(product); return price ? formatPrice(price.minor * quantity, price.currency) : "–"; })()}</p>
                     </div>
                     {!canShip(product) && <p className="mt-1 text-xs text-danger">Not sold in {market.name}</p>}
                     <div className="mt-auto flex items-center justify-between pt-2">
@@ -77,7 +77,7 @@ export function BagDrawer() {
             <footer className="space-y-3 border-t border-line bg-surface px-5 py-5">
               <div className="flex items-baseline justify-between">
                 <span className="text-sm text-ink-soft">Subtotal</span>
-                <span className="text-xl font-semibold tabular-nums">{formatNaira(subtotalKobo)}</span>
+                <span className="text-xl font-semibold tabular-nums">{formatPrice(subtotalMinor, market.currency)}</span>
               </div>
               <p className="text-xs text-ink-soft">Delivery is added at checkout, before you pay.</p>
               {checkoutLive ? (

@@ -1,18 +1,8 @@
 import Link from "next/link";
-import { formatNaira, type Product } from "@/lib/catalogue";
+import type { Product } from "@/lib/catalogue";
 import { ProductArt } from "@/components/shop/product-art";
 import { AddToBag } from "@/components/shop/add-to-bag";
-
-export function Price({ product, large = false }: { product: Product; large?: boolean }) {
-  return (
-    <span className="inline-flex flex-wrap items-baseline gap-x-2">
-      <span className={`font-semibold tabular-nums text-ink ${large ? "text-3xl" : "text-base"}`}>{formatNaira(product.priceKobo)}</span>
-      {product.compareAtKobo && product.compareAtKobo > product.priceKobo && (
-        <s className={`tabular-nums text-ink-faint ${large ? "text-lg" : "text-sm"}`} aria-label={`was ${formatNaira(product.compareAtKobo)}`}>{formatNaira(product.compareAtKobo)}</s>
-      )}
-    </span>
-  );
-}
+import { Price } from "@/components/shop/price";
 
 export function ProductCard({ product, priority = false }: { product: Product; priority?: boolean }) {
   return (

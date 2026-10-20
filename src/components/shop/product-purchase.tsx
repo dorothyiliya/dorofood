@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import { Globe, Truck } from "@phosphor-icons/react/dist/ssr";
-import { formatNaira, type Product } from "@/lib/catalogue";
-import { formatMoney } from "@/lib/money";
+import { formatPrice, type Product } from "@/lib/catalogue";
 import { AddToBag } from "@/components/shop/add-to-bag";
 import { QuantityStepper } from "@/components/shop/bag-drawer";
 import { useShop } from "@/components/shop/shop-provider";
@@ -32,7 +31,8 @@ export function ProductPurchase({ product }: { product: Product }) {
             <p className="font-semibold">Delivery to {market.name}</p>
             <p className="mt-0.5 text-ink-soft">
               {!ships ? `This item is not sold for delivery to ${market.name}.`
-                : market.delivers && market.flatRateMinor ? `${market.currency === "NGN" ? formatNaira(Number(market.flatRateMinor)) : formatMoney(market.flatRateMinor, market.currency)} per order, shown again before you pay.`
+                : market.countries.length > 1 ? `From ${formatPrice(Math.min(...market.countries.map((c) => Number(c.flatRateMinor))), market.currency)} per order depending on the country, shown again before you pay.`
+                : market.delivers && market.flatRateMinor ? `${formatPrice(Number(market.flatRateMinor), market.currency)} per order, shown again before you pay.`
                 : "Delivery to this destination is not open yet."}
             </p>
           </div>

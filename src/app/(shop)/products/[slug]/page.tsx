@@ -3,9 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CaretRight } from "@phosphor-icons/react/dist/ssr";
 import { loadProduct } from "@/lib/storefront-data";
-import { formatNaira } from "@/lib/catalogue";
 import { ProductArt } from "@/components/shop/product-art";
-import { Price } from "@/components/shop/product-card";
+import { Price, SavingBadge } from "@/components/shop/price";
 import { ProductPurchase } from "@/components/shop/product-purchase";
 import { ProductRail } from "@/components/shop/product-rail";
 
@@ -25,7 +24,6 @@ export default async function ProductPage({ params }: Params) {
   const { data, product } = await loadProduct((await params).slug);
   if (!product) notFound();
   const related = data.products.filter((p) => p.categorySlug === product.categorySlug && p.id !== product.id).slice(0, 10);
-  const saving = product.compareAtKobo && product.compareAtKobo > product.priceKobo ? product.compareAtKobo - product.priceKobo : 0;
 
   return (
     <div className="mx-auto max-w-shop px-4 pt-6 sm:px-6">
@@ -60,7 +58,7 @@ export default async function ProductPage({ params }: Params) {
           <p className="mt-2 text-ink-soft">{product.size}</p>
           <div className="mt-6 flex flex-wrap items-center gap-3">
             <Price product={product} large />
-            {saving > 0 && <span className="rounded-full bg-gold-soft px-3 py-1 text-sm font-semibold text-gold-ink">Save {formatNaira(saving)}</span>}
+            <SavingBadge product={product} />
           </div>
           <p className={`mt-2 text-sm font-medium ${product.available ? "text-leaf-ink" : "text-danger"}`}>{product.available ? "In stock" : "Sold out for now"}</p>
           <div className="mt-8"><ProductPurchase product={product} /></div>

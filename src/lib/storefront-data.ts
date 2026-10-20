@@ -7,7 +7,11 @@ import { gatewayReady } from "@/lib/payments/gateway";
 import { DEFAULT_PAYMENT_PROVIDER } from "@/lib/integrations/definitions";
 import { categoryIcon, packFor, sampleProducts, slugify, summariseCategories, type CategorySummary, type Product } from "@/lib/catalogue";
 
-export type MarketSummary = { code: string; name: string; currency: string; countryCode: string; delivers: boolean; flatRateMinor: string | null };
+export type MarketSummary = {
+  code: string; name: string; currency: string; countryCode: string; delivers: boolean; flatRateMinor: string | null;
+  /** Countries this market delivers to, each with its flat rate. More than one means the shopper picks at checkout. */
+  countries: { code: string; flatRateMinor: string }[];
+};
 
 export type StorefrontData = {
   products: Product[];
@@ -25,10 +29,10 @@ export type StorefrontData = {
 const HOME_MARKET = "NG";
 
 const SAMPLE_MARKETS: MarketSummary[] = [
-  { code: "NG", name: "Nigeria", currency: "NGN", countryCode: "NG", delivers: false, flatRateMinor: null },
-  { code: "GB", name: "United Kingdom", currency: "GBP", countryCode: "GB", delivers: false, flatRateMinor: null },
-  { code: "US", name: "United States", currency: "USD", countryCode: "US", delivers: false, flatRateMinor: null },
-  { code: "CA", name: "Canada", currency: "CAD", countryCode: "CA", delivers: false, flatRateMinor: null },
+  { code: "NG", name: "Nigeria", currency: "NGN", countryCode: "NG", delivers: false, flatRateMinor: null, countries: [] },
+  { code: "GB", name: "United Kingdom", currency: "GBP", countryCode: "GB", delivers: false, flatRateMinor: null, countries: [] },
+  { code: "US", name: "United States", currency: "USD", countryCode: "US", delivers: false, flatRateMinor: null, countries: [] },
+  { code: "CA", name: "Canada", currency: "CAD", countryCode: "CA", delivers: false, flatRateMinor: null, countries: [] },
 ];
 
 function sample(settings: { announcement: string; contactEmail: string }): StorefrontData {
@@ -93,6 +97,7 @@ export const loadStorefront = cache(async function loadStorefront(): Promise<Sto
         size: v.packSize,
         priceKobo: Number(homePrice.priceMinor),
         compareAtKobo: homePrice.compareAtMinor ? Number(homePrice.compareAtMinor) : undefined,
+        prices: Object.fromEntries(v.marketProducts.map((mp) => [mp.market.code, { minor: Number(mp.priceMinor), compareAt: mp.compareAtMinor ? Number(mp.compareAtMinor) : undefined }])),
         description: v.product.description,
         images: v.product.media.map((m) => ({ url: m.url, alt: m.altText })),
         pack: packFor(v.product.slug, position),
@@ -109,7 +114,8 @@ export const loadStorefront = cache(async function loadStorefront(): Promise<Sto
       categories: summariseCategories(products, categoryRows.map((c) => c.name)),
       markets: [...markets].sort((a, b) => Number(b.code === HOME_MARKET) - Number(a.code === HOME_MARKET) || a.name.localeCompare(b.name)).map((m) => {
         const rule = m.shippingRules.find((r) => r.countryCode === m.countryCode) ?? m.shippingRules[0];
-        return { code: m.code, name: m.name, currency: m.currency, countryCode: m.countryCode, delivers: Boolean(rule), flatRateMinor: rule?.flatRateMinor?.toString() ?? null };
+        const countries = m.shippingRules.map((r) => ({ code: r.countryCode, flatRateMinor: r.flatRateMinor!.toString() })).sort((a, b) => a.code.localeCompare(b.code));
+        return { code: m.code, name: m.name, currency: m.currency, countryCode: m.countryCode, delivers: Boolean(rule), flatRateMinor: rule?.flatRateMinor?.toString() ?? null, countries };
       }),
       homeMarket: HOME_MARKET,
       ...storeSettings,
