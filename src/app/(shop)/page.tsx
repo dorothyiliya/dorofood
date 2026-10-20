@@ -76,7 +76,7 @@ function Hero({ products }: { products: Product[] }) {
 function HowItWorks({ paymentWindowMinutes }: { paymentWindowMinutes: number }) {
   const items = [
     { Icon: Truck, title: "Delivery priced upfront", body: "A fixed fee per order, shown before you pay." },
-    { Icon: ShieldCheck, title: "Paystack payments", body: "Every payment is confirmed directly with Paystack." },
+    { Icon: ShieldCheck, title: "Secure payments", body: "Every payment is confirmed directly with our payment provider before your order is." },
     { Icon: Package, title: "Stock held while you pay", body: `Items in your checkout are reserved for ${paymentWindowMinutes} minutes.` },
     { Icon: Globe, title: "Export-checked abroad", body: "Orders outside Nigeria are checked before they ship." },
   ];

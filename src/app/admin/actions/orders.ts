@@ -23,7 +23,7 @@ export async function cancelOrderAction(_: ActionState, form: FormData) {
 export async function verifyPaymentAction(_: ActionState, form: FormData) {
   return adminAction("orders.manage", async (staff) => {
     const result = await verifyPaymentNow(id(form, "paymentId"), staff.id);
-    return `Paystack says: payment ${result.paymentStatus.toLowerCase()}, order ${result.orderStatus.toLowerCase().replace(/_/g, " ")}.`;
+    return `Checked with the payment provider: payment ${result.paymentStatus.toLowerCase()}, order ${result.orderStatus.toLowerCase().replace(/_/g, " ")}.`;
   });
 }
 
@@ -44,10 +44,10 @@ export async function refundAction(_: ActionState, form: FormData) {
       actorId: staff.id,
       idempotencyKey: `admin:${id(form, "idempotencyKey")}`,
     });
-    if (refund.status === "FAILED") return `Paystack rejected the refund: ${refund.failureReason ?? "no reason given"}`;
-    if (refund.providerCallState === "UNKNOWN") return "Refund sent but Paystack did not confirm it. Check the Paystack dashboard before doing anything else.";
-    if (refund.providerCallState === "NOT_SENT") return "Refund recorded but not sent: Paystack is not configured. It will be sent automatically once it is.";
-    return "Refund submitted to Paystack.";
+    if (refund.status === "FAILED") return `The payment provider rejected the refund: ${refund.failureReason ?? "no reason given"}`;
+    if (refund.providerCallState === "UNKNOWN") return "Refund sent but the payment provider did not confirm it. Check its dashboard before doing anything else.";
+    if (refund.providerCallState === "NOT_SENT") return "Refund recorded but not sent: the payment provider is not configured. It will be sent automatically once it is.";
+    return "Refund submitted to the payment provider.";
   });
 }
 

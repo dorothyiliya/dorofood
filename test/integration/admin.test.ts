@@ -171,7 +171,9 @@ describe("catalogue, markets and shipping", () => {
 
   it("new markets work at checkout once they have prices and an enabled, priced shipping rule", async () => {
     const f = await seedFixture();
-    const us = await saveMarket(null, { code: "US", name: "United States", countryCode: "US", currency: "USD", status: "ACTIVE" }, "staff");
+    // Without a gateway named, a new market uses Whop, which is not set up in this test.
+    await expect(saveMarket(null, { code: "US", name: "United States", countryCode: "US", currency: "USD", status: "ACTIVE" }, "staff")).rejects.toMatchObject({ code: "GATEWAY_NOT_READY" });
+    const us = await saveMarket(null, { code: "US", name: "United States", countryCode: "US", currency: "USD", status: "ACTIVE", paymentProvider: "paystack" }, "staff");
     await expect(saveShippingRule(us.id, null, { countryCode: "US", providerCode: "DHL", enabled: true, flatRateMinor: null, minOrderMinor: null, maxWeightGrams: null }, "staff")).rejects.toMatchObject({ code: "RATE_REQUIRED" });
     await expect(saveShippingRule(us.id, null, { countryCode: "GB", providerCode: "DHL", enabled: false, flatRateMinor: null, minOrderMinor: null, maxWeightGrams: null }, "staff")).rejects.toMatchObject({ code: "RULE_COUNTRY_MISMATCH" });
     await saveShippingRule(us.id, null, { countryCode: "US", providerCode: "DHL", enabled: true, flatRateMinor: BigInt(2500), minOrderMinor: null, maxWeightGrams: null }, "staff");
@@ -180,7 +182,7 @@ describe("catalogue, markets and shipping", () => {
     const res = await api.checkout(checkoutBody([{ variantId: f.tea, quantity: 1 }], { market: "US", countryCode: "US" }));
     expect(res.status).toBe(201);
     expect(res.body).toMatchObject({ currency: "USD", totalMinor: "4000" });
-    await expect(saveMarket(us.id, { code: "US", name: "United States", countryCode: "US", currency: "CAD", status: "ACTIVE" }, "staff")).rejects.toMatchObject({ code: "CURRENCY_LOCKED" });
+    await expect(saveMarket(us.id, { code: "US", name: "United States", countryCode: "US", currency: "CAD", status: "ACTIVE", paymentProvider: "paystack" }, "staff")).rejects.toMatchObject({ code: "CURRENCY_LOCKED" });
   });
 });
 

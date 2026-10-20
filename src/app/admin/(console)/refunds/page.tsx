@@ -25,7 +25,7 @@ export default async function RefundsPage({ searchParams }: { searchParams: Prom
     <>
       <PageHeader title="Refunds" description="Refunds are issued from an order. Resolve unknown or failed ones from the order page." />
       <div className="mb-4">
-        <Notice>A refund marked <strong>Unknown</strong> was sent to Paystack but no answer came back. It is never retried automatically, because that could repay the customer twice. Check it in the Paystack dashboard, then record the outcome on the order.</Notice>
+        <Notice>A refund marked <strong>Unknown</strong> was sent to the payment provider but no answer came back. It is never retried automatically, because that could repay the customer twice. Check it in the provider&apos;s dashboard (Whop or Paystack), then record the outcome on the order.</Notice>
       </div>
       <Tabs active={view} tabs={Object.entries(VIEWS).map(([key, v]) => ({ key, label: v.label, href: `/admin/refunds?view=${key}` }))} />
       <Card>

@@ -31,7 +31,7 @@ export default async function SystemPage() {
           )}
           <p className="mt-4 text-sm text-slate-600">Environment variables are set in the Vercel project (Settings → Environment Variables) and take effect on the next deployment. Store-level switches are in Store settings and apply immediately.</p>
         </Card>
-        <Card title="Reconciliation job" description="Retries failed payment notifications, checks unconfirmed payments with Paystack, releases stock from expired checkouts and sends pending refunds." className="xl:col-span-2"
+        <Card title="Reconciliation job" description="Retries failed payment notifications, checks unconfirmed payments with the payment provider, releases stock from expired checkouts and sends pending refunds." className="xl:col-span-2"
           actions={can(staff.role, "jobs.run") && <ActionForm action={runReconciliationAction} submitLabel="Run now" variant="secondary" />}>
           <Table head={["Started", "Trigger", "Status", "Result"]} empty="No runs recorded yet. On Vercel's Hobby plan cron runs at most once a day; run it here or use an external scheduler.">
             {status.jobs.map((j) => (

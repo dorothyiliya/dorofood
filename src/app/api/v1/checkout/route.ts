@@ -4,7 +4,7 @@ import { createCheckout } from "@/lib/commerce/checkout";
 
 export const dynamic = "force-dynamic";
 
-/** Creates a pending order, reserves stock and returns a Paystack payment URL. Disabled unless CHECKOUT_ENABLED=true. */
+/** Creates a pending order, reserves stock and returns the payment provider's hosted payment URL. Disabled unless CHECKOUT_ENABLED=true. */
 export async function POST(request: Request) {
   try {
     const result = await createCheckout(await readJsonBody(request), request.headers.get("idempotency-key"));

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { CommerceError, isUniqueViolation } from "@/lib/commerce/errors";
-import { definition, PAYMENT_PROVIDERS } from "@/lib/integrations/definitions";
+import { DEFAULT_PAYMENT_PROVIDER, definition, PAYMENT_PROVIDERS } from "@/lib/integrations/definitions";
 import { gatewayReady } from "@/lib/payments/gateway";
 
 const country = z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/, "Use a two-letter ISO country code.");
@@ -14,7 +14,7 @@ export const marketSchema = z.object({
   countryCode: country,
   currency: z.enum(["NGN", "GBP", "USD", "CAD", "EUR"]),
   status: z.enum(["ACTIVE", "PAUSED"]),
-  paymentProvider: z.enum(PAYMENT_PROVIDERS).default("paystack"),
+  paymentProvider: z.enum(PAYMENT_PROVIDERS).default(DEFAULT_PAYMENT_PROVIDER),
 });
 
 export const shippingRuleSchema = z.object({

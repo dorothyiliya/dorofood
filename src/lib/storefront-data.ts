@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { isDatabaseConfigured } from "@/lib/env";
 import { getSettings, SETTINGS } from "@/lib/settings";
 import { gatewayReady } from "@/lib/payments/gateway";
+import { DEFAULT_PAYMENT_PROVIDER } from "@/lib/integrations/definitions";
 import { categoryIcon, packFor, sampleProducts, slugify, summariseCategories, type CategorySummary, type Product } from "@/lib/catalogue";
 
 export type MarketSummary = { code: string; name: string; currency: string; countryCode: string; delivers: boolean; flatRateMinor: string | null };
@@ -113,7 +114,7 @@ export const loadStorefront = cache(async function loadStorefront(): Promise<Sto
       homeMarket: HOME_MARKET,
       ...storeSettings,
       previewMode: settings["storefront.previewMode"],
-      checkoutLive: await checkoutSwitchesOn(settings["checkout.open"], home?.paymentProvider ?? "paystack"),
+      checkoutLive: await checkoutSwitchesOn(settings["checkout.open"], home?.paymentProvider ?? DEFAULT_PAYMENT_PROVIDER),
       paymentWindowMinutes: settings["checkout.paymentWindowMinutes"],
       source: "database",
     };

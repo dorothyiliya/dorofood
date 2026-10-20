@@ -49,7 +49,7 @@ export const INTEGRATIONS: IntegrationDef[] = [
     key: "whop",
     name: "Whop",
     category: "payments",
-    summary: "Hosted checkout for international card payments (USD, GBP, CAD, EUR).",
+    summary: "Hosted card checkout in naira, dollars, pounds, euros and more.",
     fields: [
       { key: "apiKey", label: "Company API key", secret: true, required: true, env: "WHOP_API_KEY", help: "Whop Dashboard → Developer. Needs payment read, payment manage and checkout configuration permissions." },
       { key: "webhookSecret", label: "Webhook signing secret", secret: true, required: true, env: "WHOP_WEBHOOK_SECRET", placeholder: "ws_…", help: "Shown when you create the webhook in Whop. Subscribe to payment.* and refund.* events." },
@@ -115,3 +115,10 @@ export function definition(key: IntegrationKey) {
 
 export const PAYMENT_PROVIDERS = ["paystack", "whop"] as const;
 export type PaymentProviderId = (typeof PAYMENT_PROVIDERS)[number];
+/** Used for new markets until another gateway is chosen. */
+export const DEFAULT_PAYMENT_PROVIDER: PaymentProviderId = "whop";
+
+/** Display name for a stored provider id. */
+export function providerName(provider: string | null | undefined) {
+  return PAYMENT_PROVIDERS.includes(provider as PaymentProviderId) ? definition(provider as PaymentProviderId).name : "the payment provider";
+}

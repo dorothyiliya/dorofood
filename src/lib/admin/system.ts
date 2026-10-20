@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { ConfigError, getAppBaseUrl, getCronSecret } from "@/lib/env";
 import { canEncrypt } from "@/lib/integrations/crypto";
-import { definition } from "@/lib/integrations/definitions";
+import { DEFAULT_PAYMENT_PROVIDER, definition, providerName } from "@/lib/integrations/definitions";
 import { getAllIntegrations } from "@/lib/integrations/store";
 import { gatewayReady } from "@/lib/payments/gateway";
 import { getPaystackConfig } from "@/lib/payments/paystack";
@@ -50,7 +50,7 @@ export async function systemStatus() {
   }
 
   const home = await prisma.market.findUnique({ where: { code: "NG" } }).catch(() => null);
-  const homeProvider = home?.paymentProvider ?? "paystack";
+  const homeProvider = home?.paymentProvider ?? DEFAULT_PAYMENT_PROVIDER;
   const gatewayOk = await gatewayReady(homeProvider);
   const deploymentOk = process.env.CHECKOUT_ENABLED === "true";
   const checkoutLive = settings["checkout.open"] && deploymentOk && gatewayOk;
@@ -63,7 +63,7 @@ export async function systemStatus() {
       reasons: [
         !settings["checkout.open"] && "The store setting \"Store accepts orders\" is off.",
         !deploymentOk && "CHECKOUT_ENABLED is not \"true\" on this deployment.",
-        !gatewayOk && `The Nigeria market's payment gateway (${definition(homeProvider === "whop" ? "whop" : "paystack").name}) is not ready.`,
+        !gatewayOk && `The Nigeria market's payment gateway (${providerName(homeProvider)}) is not ready.`,
       ].filter(Boolean) as string[],
     },
     jobs: await prisma.jobRun.findMany({ orderBy: { startedAt: "desc" }, take: 10 }),

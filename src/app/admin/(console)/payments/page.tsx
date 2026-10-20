@@ -20,7 +20,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
 
   return (
     <>
-      <PageHeader title="Payments" description="Paystack transactions and the webhook notifications Paystack sent." />
+      <PageHeader title="Payments" description="Payment attempts with every gateway (Whop, Paystack) and the webhook notifications they sent." />
       <Tabs active={tab} tabs={[{ key: "transactions", label: "Transactions", href: "/admin/payments" }, { key: "events", label: "Webhook events", href: "/admin/payments?tab=events" }]} />
       {tab === "transactions" ? <Transactions page={page} status={PAYMENT_STATUSES.find((s) => s === params.status)} /> : <Events page={page} status={EVENT_STATUSES.find((s) => s === params.status)} canReprocess={can(staff.role, "payments.manage")} />}
     </>

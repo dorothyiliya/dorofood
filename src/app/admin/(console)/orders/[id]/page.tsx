@@ -6,6 +6,7 @@ import { requireStaffPage } from "@/lib/admin/session";
 import { can } from "@/lib/admin/auth";
 import { paidAmount } from "@/lib/commerce/refunds";
 import { minorToInput } from "@/lib/money";
+import { providerName } from "@/lib/integrations/definitions";
 import { ActionForm } from "@/app/admin/_components/action-form";
 import { Card, DateTime, Field, KeyValues, Money, Notice, PageHeader, Select, StatusBadge, Table, inputClass, td, humanise } from "@/app/admin/_components/ui";
 import {
@@ -75,7 +76,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
             </div>
           </Card>
 
-          <Card title="Payments" description="Status comes only from Paystack's verification API.">
+          <Card title="Payments" description="Status comes only from the payment provider's verification API.">
             <Table head={["Reference", "Status", "Expected", "Received", "Verified", ""]} empty="No payment attempts.">
               {order.payments.map((p) => (
                 <tr key={p.id}>
@@ -84,7 +85,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                   <td className={`${td} text-right`}><Money minor={p.amountMinor} currency={p.currency} /></td>
                   <td className={`${td} text-right`}><Money minor={p.receivedAmountMinor} currency={p.receivedCurrency ?? p.currency} /></td>
                   <td className={td}><DateTime value={p.verifiedAt} /></td>
-                  <td className={td}>{perm.manage && ["INITIATED", "PENDING", "FAILED"].includes(p.status) && <ActionForm action={verifyPaymentAction} hidden={{ paymentId: p.id }} submitLabel="Check with Paystack" variant="secondary" />}</td>
+                  <td className={td}>{perm.manage && ["INITIATED", "PENDING", "FAILED"].includes(p.status) && <ActionForm action={verifyPaymentAction} hidden={{ paymentId: p.id }} submitLabel={`Check with ${providerName(p.provider)}`} variant="secondary" />}</td>
                 </tr>
               ))}
             </Table>
@@ -103,9 +104,9 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                     {perm.refunds && r.status === "REFUND_PENDING" && r.providerCallState !== "SENT" && (
                       <details>
                         <summary className="cursor-pointer text-sm font-medium text-brand-800">Record outcome…</summary>
-                        <ActionForm action={resolveRefundAction} hidden={{ refundId: r.id }} submitLabel="Record" className="mt-2" confirm="I checked this refund in the Paystack dashboard.">
-                          <Field label="Outcome"><Select name="outcome" options={[["REFUNDED", "Refunded in Paystack"], ["FAILED", "Not refunded / failed"]]} /></Field>
-                          <Field label="Paystack refund ID (optional)"><input name="providerRef" className={inputClass} /></Field>
+                        <ActionForm action={resolveRefundAction} hidden={{ refundId: r.id }} submitLabel="Record" className="mt-2" confirm={`I checked this refund in the ${providerName(p.provider)} dashboard.`}>
+                          <Field label="Outcome"><Select name="outcome" options={[["REFUNDED", `Refunded in ${providerName(p.provider)}`], ["FAILED", "Not refunded / failed"]]} /></Field>
+                          <Field label={`${providerName(p.provider)} refund ID (optional)`}><input name="providerRef" className={inputClass} /></Field>
                           <Field label="Note"><input name="note" required className={inputClass} /></Field>
                         </ActionForm>
                       </details>
@@ -211,7 +212,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
 
           {perm.refunds && refundable > BigInt(0) && order.status !== "PAYMENT_REVIEW" && (
             <Card title="Refund" description={<>Up to <Money minor={refundable} currency={order.currency} /> can be refunded. A full refund before dispatch cancels the order and returns its stock.</>}>
-              <ActionForm action={refundAction} hidden={{ orderId: order.id, idempotencyKey: randomUUID() }} submitLabel="Issue refund" variant="danger" confirm="Send this refund to the customer through Paystack.">
+              <ActionForm action={refundAction} hidden={{ orderId: order.id, idempotencyKey: randomUUID() }} submitLabel="Issue refund" variant="danger" confirm={`Send this refund to the customer through ${providerName(succeeded[0]?.provider)}.`}>
                 <Field label="Amount" help="Leave empty to refund everything remaining."><input name="amount" inputMode="decimal" placeholder={minorToInput(refundable)} className={inputClass} /></Field>
                 <Field label="Reason"><input name="reason" required className={inputClass} /></Field>
               </ActionForm>

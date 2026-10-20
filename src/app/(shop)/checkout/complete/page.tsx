@@ -17,7 +17,7 @@ const MESSAGES: Record<string, { title: string; body: string; tone: Tone }> = {
   CANCELLED: { title: "This checkout expired", body: "No payment was confirmed before the checkout expired. If you were charged, it will be refunded automatically.", tone: "problem" },
 };
 
-/** Paystack redirects here with ?reference=. The browser redirect itself is never trusted; the page verifies server-side. */
+/** The payment provider redirects here with ?reference=. The browser redirect itself is never trusted; the page verifies server-side. */
 export default async function CheckoutCompletePage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const params = await searchParams;
   const reference = typeof params.reference === "string" && /^DFP_[a-f0-9]{32}$/.test(params.reference) ? params.reference : null;

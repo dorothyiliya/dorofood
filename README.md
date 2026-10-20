@@ -67,8 +67,8 @@ You are prompted for the password (hidden; 12+ characters). Further staff are ad
 
 | Integration | Used for | Webhook |
 | --- | --- | --- |
-| Paystack | Payments, usually for naira markets | `/api/v1/webhooks/paystack` |
-| Whop | Hosted card checkout, usually for international markets | `/api/v1/webhooks/whop` (subscribe to `payment.*` and `refund.*`) |
+| Whop | Hosted card checkout in naira and international currencies; the default gateway for new markets | `/api/v1/webhooks/whop` (subscribe to `payment.*` and `refund.*`) |
+| Paystack | Naira payments, optional | `/api/v1/webhooks/paystack` |
 | NVIDIA AI | "Draft with AI" for product descriptions; staff review before saving | |
 | Resend | Order confirmed, dispatched and refunded emails | |
 | Photo storage | Upload product photos (S3-compatible: Cloudflare R2, Tigris, AWS S3) | |

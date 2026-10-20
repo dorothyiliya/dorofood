@@ -16,7 +16,7 @@ const MESSAGES: Record<string, string> = {
   SHIPPING_UNAVAILABLE: "We do not deliver to this destination yet.",
   MARKET_UNAVAILABLE: "We are not taking orders for this destination yet.",
   CHECKOUT_CLOSED: "The shop is not taking orders right now.",
-  PAYMENT_PROVIDER_UNAVAILABLE: "We could not reach Paystack. Nothing was charged; please try again.",
+  PAYMENT_PROVIDER_UNAVAILABLE: "We could not reach our payment provider. Nothing was charged; please try again.",
   INVALID_CHECKOUT: "Please check the highlighted details.",
 };
 
@@ -131,7 +131,7 @@ export function CheckoutForm() {
         <div className="flex justify-between"><dt className="text-ink-soft">Delivery to {market.name}</dt><dd className="tabular-nums">{quote ? formatMoney(quote.shippingMinor, quote.currency) : "…"}</dd></div>
         <div className="flex justify-between border-t border-line pt-3 text-base font-semibold"><dt>Total</dt><dd className="tabular-nums">{quote ? formatMoney(quote.totalMinor, quote.currency) : "…"}</dd></div>
       </dl>
-      <p className="mt-4 text-xs text-ink-soft">Prices are confirmed by our server. You pay on Paystack&apos;s secure page.</p>
+      <p className="mt-4 text-xs text-ink-soft">Prices are confirmed by our server. You pay on our payment provider&apos;s secure page.</p>
     </aside>
   );
 
@@ -184,7 +184,7 @@ export function CheckoutForm() {
         <button type="submit" disabled={submitting || !quote || blocked || !key}
           className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-full bg-primary text-lg font-semibold text-primary-ink transition hover:bg-primary-hover active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50">
           <Lock size={20} weight="bold" aria-hidden="true" />
-          {submitting ? "Connecting to Paystack…" : quote ? `Pay ${formatMoney(quote.totalMinor, quote.currency)}` : "Pay securely"}
+          {submitting ? "Connecting to secure payment…" : quote ? `Pay ${formatMoney(quote.totalMinor, quote.currency)}` : "Pay securely"}
         </button>
       </form>
       {summary}

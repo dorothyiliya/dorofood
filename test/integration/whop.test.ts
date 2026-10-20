@@ -55,6 +55,20 @@ describe("Whop checkout", () => {
     expect(payment.metadataJson).toMatchObject({ checkoutConfigurationId: checkout.id });
   });
 
+  it("Nigeria on Whop charges the exact naira total and confirms through Whop", async () => {
+    const f = await seedFixture();
+    await prisma.market.update({ where: { code: "NG" }, data: { paymentProvider: "whop" } });
+    const res = await api.checkout(checkoutBody([{ variantId: f.crisps, quantity: 1 }]));
+    expect(res.status).toBe(201);
+    const reference = res.body.payment.reference as string;
+    expect(whop.checkoutFor(reference)!.plan).toMatchObject({ initial_price: 3350, currency: "ngn" }); // N1,850 + N1,500 delivery
+    const paid = whop.pay(reference);
+    expect((await deliver(paymentSucceeded(paid))).status).toBe(200);
+    const order = await orderByNumber(res.body.orderNumber);
+    expect(order).toMatchObject({ status: "CONFIRMED", currency: "NGN" });
+    expect(order.payments[0]).toMatchObject({ provider: "whop", receivedAmountMinor: BigInt(335000), receivedCurrency: "NGN" });
+  });
+
   it("a market switched to an unconfigured Whop fails closed before any stock is held", async () => {
     delete process.env.WHOP_API_KEY;
     const f = await seedFixture();
