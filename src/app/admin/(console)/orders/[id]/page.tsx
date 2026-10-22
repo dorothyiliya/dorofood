@@ -85,7 +85,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                   <td className={`${td} text-right`}><Money minor={p.amountMinor} currency={p.currency} /></td>
                   <td className={`${td} text-right`}><Money minor={p.receivedAmountMinor} currency={p.receivedCurrency ?? p.currency} /></td>
                   <td className={td}><DateTime value={p.verifiedAt} /></td>
-                  <td className={td}>{perm.manage && ["INITIATED", "PENDING", "FAILED"].includes(p.status) && <ActionForm action={verifyPaymentAction} hidden={{ paymentId: p.id }} submitLabel={`Check with ${providerName(p.provider)}`} variant="secondary" />}</td>
+                  <td className={td}>{perm.manage && ["INITIATED", "PENDING", "FAILED"].includes(p.status) && <ActionForm action={verifyPaymentAction} hidden={{ paymentId: p.id }} submitLabel="Check payment" variant="secondary" />}</td>
                 </tr>
               ))}
             </Table>
