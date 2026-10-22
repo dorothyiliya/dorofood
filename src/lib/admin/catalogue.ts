@@ -4,18 +4,22 @@ import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { CommerceError, isUniqueViolation } from "@/lib/commerce/errors";
 import { getSetting } from "@/lib/settings";
+import { slugify } from "@/lib/catalogue";
+import { uniqueProductSlug } from "@/lib/admin/products";
 
 const status = z.enum(["DRAFT", "ACTIVE", "ARCHIVED"]);
-const slug = z.string().trim().toLowerCase().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Use lowercase letters, numbers and single hyphens.").max(80);
+const slug = z.string().trim().toLowerCase().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "The web address can only use lowercase letters, numbers and single dashes.").max(80);
+/** Empty means "make one from the name" (or keep the current one when editing). */
+const optionalSlug = z.union([z.literal(""), slug]).optional().transform((v) => v || null);
 const optional = (schema: z.ZodString) => schema.optional().transform((v) => v || null);
 
 export const productSchema = z.object({
-  name: z.string().trim().min(2).max(120),
-  slug,
-  description: z.string().trim().min(10).max(4000),
+  name: z.string().trim().min(2, "Enter the product name.").max(120),
+  slug: optionalSlug,
+  description: z.string().trim().min(10, "Write a short description, at least a few words.").max(4000),
   brand: optional(z.string().trim().max(80)),
   categoryId: optional(z.string().trim().max(40)),
-  originCountry: z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/),
+  originCountry: z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/, "Choose the country the product is made in."),
   status,
 });
 
@@ -38,8 +42,8 @@ export const marketPriceSchema = z.object({
 });
 
 export const categorySchema = z.object({
-  name: z.string().trim().min(2).max(60),
-  slug,
+  name: z.string().trim().min(2, "Enter the category name.").max(60),
+  slug: optionalSlug,
   sortOrder: z.number().int().min(0).max(10_000),
   status,
 });
@@ -56,12 +60,14 @@ export async function saveProduct(id: string | null, input: z.input<typeof produ
   }
   try {
     return await prisma.$transaction(async (tx) => {
-      const product = id ? await tx.product.update({ where: { id }, data }) : await tx.product.create({ data });
+      const current = id ? await tx.product.findUnique({ where: { id }, select: { slug: true } }) : null;
+      const record = { ...data, slug: data.slug ?? current?.slug ?? (await uniqueProductSlug(tx, data.name)) };
+      const product = id ? await tx.product.update({ where: { id }, data: record }) : await tx.product.create({ data: record });
       await recordAudit(tx, { action: id ? "PRODUCT_UPDATED" : "PRODUCT_CREATED", entityType: "Product", entityId: product.id, actorId, metadata: data });
       return product;
     });
   } catch (error) {
-    uniqueError(error, "slug", "Another product already uses this slug.");
+    uniqueError(error, "slug", "Another product already uses this web address. Change it, or leave it empty.");
   }
 }
 
@@ -114,18 +120,26 @@ export async function saveCategory(id: string | null, input: z.input<typeof cate
   const data = categorySchema.parse(input);
   try {
     return await prisma.$transaction(async (tx) => {
-      const category = id ? await tx.category.update({ where: { id }, data }) : await tx.category.create({ data });
+      const current = id ? await tx.category.findUnique({ where: { id }, select: { slug: true } }) : null;
+      let slugValue = data.slug ?? current?.slug ?? null;
+      if (!slugValue) {
+        const root = slugify(data.name) || "category";
+        slugValue = root;
+        for (let i = 2; await tx.category.findUnique({ where: { slug: slugValue } }); i++) slugValue = `${root}-${i}`;
+      }
+      const record = { ...data, slug: slugValue };
+      const category = id ? await tx.category.update({ where: { id }, data: record }) : await tx.category.create({ data: record });
       await recordAudit(tx, { action: id ? "CATEGORY_UPDATED" : "CATEGORY_CREATED", entityType: "Category", entityId: category.id, actorId, metadata: data });
       return category;
     });
   } catch (error) {
-    uniqueError(error, "slug", "Another category already uses this slug.");
+    uniqueError(error, "slug", "Another category already uses this web address. Change it, or leave it empty.");
   }
 }
 
 export const productImageSchema = z.object({
   url: z.string().trim().max(2000).url().refine((u) => u.startsWith("https://"), "Use an https:// image address."),
-  altText: z.string().trim().min(3, "Describe the photo for people using screen readers.").max(200),
+  altText: z.string().trim().min(3, "Describe the photo in a few words.").max(200),
 });
 
 /** Photos are stored by URL (uploaded through Photo storage, or any https address). The first photo is the main one in the shop. */

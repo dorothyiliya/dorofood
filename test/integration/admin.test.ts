@@ -179,8 +179,6 @@ describe("catalogue, markets and shipping", () => {
 
   it("new markets work at checkout once they have prices and an enabled, priced shipping rule", async () => {
     const f = await seedFixture();
-    // Without a gateway named, a new market uses Whop, which is not set up in this test.
-    await expect(saveMarket(null, { code: "US", name: "United States", countryCode: "US", currency: "USD", status: "ACTIVE" }, "staff")).rejects.toMatchObject({ code: "GATEWAY_NOT_READY" });
     const us = await saveMarket(null, { code: "US", name: "United States", countryCode: "US", currency: "USD", status: "ACTIVE", paymentProvider: "paystack" }, "staff");
     await expect(saveShippingRule(us.id, null, { countryCode: "US", providerCode: "DHL", enabled: true, flatRateMinor: null, minOrderMinor: null, maxWeightGrams: null }, "staff")).rejects.toMatchObject({ code: "RATE_REQUIRED" });
     await expect(saveShippingRule(us.id, null, { countryCode: "GB", providerCode: "DHL", enabled: false, flatRateMinor: null, minOrderMinor: null, maxWeightGrams: null }, "staff")).rejects.toMatchObject({ code: "RULE_COUNTRY_MISMATCH" });
@@ -272,5 +270,65 @@ describe("order operations", () => {
 
     await runReconciliationJob("staff:test");
     expect(await prisma.jobRun.findFirstOrThrow()).toMatchObject({ name: "reconcile", status: "SUCCEEDED", triggeredBy: "staff:test" });
+  });
+});
+
+describe("simple product flows", () => {
+  it("one form creates the product, its size, prices, opening stock and a stock location", async () => {
+    const { createProduct } = await import("@/lib/admin/products");
+    await prisma.storeSetting.create({ data: { key: "checkout.open", value: true } });
+    const ng = await prisma.market.create({ data: { code: "NG", name: "Nigeria", countryCode: "NG", currency: "NGN", status: "ACTIVE" } });
+    const usd = await prisma.market.create({ data: { code: "NGUSD", name: "Nigeria (pay in USD)", countryCode: "NG", currency: "USD", status: "ACTIVE" } });
+    const world = await prisma.market.create({ data: { code: "OTHER", name: "Rest of the world", countryCode: "US", currency: "USD", status: "ACTIVE" } });
+    expect(await prisma.inventoryLocation.count()).toBe(0);
+
+    const product = await createProduct({
+      name: "Plantain Chips", description: "Crunchy plantain chips, lightly salted.", packSize: "150 g", show: true, openingStock: 24,
+      prices: [{ marketId: ng.id, priceMinor: BigInt(250000) }, { marketId: usd.id, priceMinor: BigInt(300) }, { marketId: world.id, priceMinor: null }],
+    }, "staff");
+
+    expect(product).toMatchObject({ slug: "plantain-chips", status: "ACTIVE", originCountry: "NG" });
+    const variant = await prisma.productVariant.findFirstOrThrow({ where: { productId: product.id }, include: { marketProducts: true, balances: { include: { location: true } } } });
+    expect(variant.sku).toMatch(/^PLANTA-CHIPS-150-G-[0-9A-F]{4}$/);
+    expect(variant.marketProducts.map((mp) => [mp.currency, mp.priceMinor, mp.exportEligible]).sort()).toEqual([["NGN", BigInt(250000), false], ["USD", BigInt(300), false]]);
+    expect(variant.balances[0]).toMatchObject({ quantityOnHand: 24, location: { code: "NG-MAIN", name: "Main store" } });
+    expect(await prisma.inventoryMovement.count({ where: { variantId: variant.id, reason: "RECEIPT", quantityDelta: 24 } })).toBe(1);
+
+    // A second product with the same name gets its own web address.
+    const twin = await createProduct({ name: "Plantain Chips", description: "Another bag of plantain chips.", packSize: "300 g", show: false, openingStock: 0, prices: [{ marketId: ng.id, priceMinor: BigInt(400000) }] }, "staff");
+    expect(twin).toMatchObject({ slug: "plantain-chips-2", status: "DRAFT" });
+  });
+
+  it("sizes: a price abroad means it may be exported; clearing a price stops selling it there; stock counts adjust", async () => {
+    const { addSize, saveSize, setStockCount } = await import("@/lib/admin/products");
+    const f = await seedFixture({ crispsStock: 3 });
+    const product = await prisma.productVariant.findUniqueOrThrow({ where: { id: f.crisps } });
+    const [ng, gb] = await Promise.all([prisma.market.findUniqueOrThrow({ where: { code: "NG" } }), prisma.market.findUniqueOrThrow({ where: { code: "GB" } })]);
+
+    const big = await addSize(product.productId, { packSize: "500 g", openingStock: 5, prices: [{ marketId: ng.id, priceMinor: BigInt(500000) }, { marketId: gb.id, priceMinor: BigInt(1500) }] }, "staff");
+    const gbPrice = await prisma.marketProduct.findUniqueOrThrow({ where: { marketId_variantId: { marketId: gb.id, variantId: big.id } } });
+    expect(gbPrice).toMatchObject({ exportEligible: true, status: "ACTIVE", currency: "GBP" });
+
+    await saveSize(big.id, { packSize: "500 g", onSale: true, prices: [{ marketId: ng.id, priceMinor: BigInt(520000), compareAtMinor: BigInt(600000) }, { marketId: gb.id, priceMinor: null }] }, "staff");
+    expect(await prisma.marketProduct.findUniqueOrThrow({ where: { id: gbPrice.id } })).toMatchObject({ status: "ARCHIVED" });
+    expect(await prisma.marketProduct.findUniqueOrThrow({ where: { marketId_variantId: { marketId: ng.id, variantId: big.id } } })).toMatchObject({ priceMinor: BigInt(520000), compareAtMinor: BigInt(600000) });
+
+    await expect(saveSize(big.id, { packSize: "500 g", onSale: true, prices: [{ marketId: ng.id, priceMinor: BigInt(520000), compareAtMinor: BigInt(100) }] }, "staff")).rejects.toThrow(/old price must be higher/);
+    await expect(saveSize(big.id, { packSize: "", onSale: true, prices: [{ marketId: ng.id, priceMinor: BigInt(1) }] }, "staff")).rejects.toThrow(/Enter the size/);
+    await expect(saveSize(big.id, { packSize: "500 g", onSale: true, prices: [{ marketId: ng.id, priceMinor: null }] }, "staff")).rejects.toThrow(/at least one price/);
+
+    expect(await setStockCount(f.crisps, 10, "staff")).toMatchObject({ onHand: 10, delta: 7 });
+    await expect(setStockCount(f.crisps, -1, "staff")).rejects.toThrow(/whole number/);
+  });
+
+  it("a new place to sell gets a code and a ready payment method automatically, without anyone choosing", async () => {
+    await seedFixture(); // NG and GB exist; the harness configures one payment method
+    const ghana = await saveMarket(null, { name: "Ghana", countryCode: "GH", currency: "USD", status: "ACTIVE" }, "staff");
+    expect(ghana).toMatchObject({ code: "GH", paymentProvider: "paystack" });
+    const naijaUsd = await saveMarket(null, { name: "Nigeria (pay in USD)", countryCode: "NG", currency: "USD", status: "PAUSED" }, "staff");
+    expect(naijaUsd.code).toBe("NGUSD");
+    // Editing keeps the code and payment method.
+    const renamed = await saveMarket(ghana.id, { name: "Ghana 🇬🇭", countryCode: "GH", currency: "USD", status: "ACTIVE" }, "staff");
+    expect(renamed).toMatchObject({ code: "GH", paymentProvider: "paystack", name: "Ghana 🇬🇭" });
   });
 });

@@ -172,3 +172,49 @@ export function pageParam(value: string | string[] | undefined) {
 export function stringParam(value: string | string[] | undefined, max = 100) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
 }
+
+/** A numbered step in a long form, so people always know where they are. */
+export function Step({ n, title, hint, children }: { n: number; title: string; hint?: ReactNode; children: ReactNode }) {
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="mb-4 flex items-start gap-3">
+        <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-brand-800 text-sm font-semibold text-white" aria-hidden="true">{n}</span>
+        <div>
+          <h2 className="text-base font-semibold text-slate-900">{title}</h2>
+          {hint && <p className="mt-0.5 text-sm text-slate-500">{hint}</p>}
+        </div>
+      </div>
+      <div className="space-y-4">{children}</div>
+    </section>
+  );
+}
+
+/** Rarely needed fields, folded away so the main form stays simple. */
+export function MoreOptions({ label = "More options", children }: { label?: string; children: ReactNode }) {
+  return (
+    <details className="group rounded-lg border border-dashed border-slate-300 px-4 py-3">
+      <summary className="cursor-pointer select-none text-sm font-medium text-slate-700 group-open:mb-3">{label} <span className="font-normal text-slate-500">(optional)</span></summary>
+      <div className="space-y-4">{children}</div>
+    </details>
+  );
+}
+
+export function currencySymbol(currency: string) {
+  try {
+    const part = new Intl.NumberFormat("en-NG", { style: "currency", currency, currencyDisplay: "narrowSymbol" }).formatToParts(0).find((p) => p.type === "currency");
+    return part?.value ?? currency;
+  } catch {
+    return currency;
+  }
+}
+
+/** An amount box with the currency sign in front (₦, $, £), taking plain numbers like 2500 or 2500.50. */
+export function MoneyInput({ name, currency, defaultValue, required, placeholder, id }: { name: string; currency: string; defaultValue?: string; required?: boolean; placeholder?: string; id?: string }) {
+  return (
+    <div className="flex rounded-md shadow-sm">
+      <span className="inline-flex min-w-10 items-center justify-center rounded-l-md border border-r-0 border-slate-300 bg-slate-50 px-2 text-sm text-slate-600" aria-hidden="true">{currencySymbol(currency)}</span>
+      <input id={id} name={name} defaultValue={defaultValue} required={required} inputMode="decimal" placeholder={placeholder ?? "0.00"} autoComplete="off"
+        className="w-full rounded-r-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-900 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20 disabled:bg-slate-50" />
+    </div>
+  );
+}

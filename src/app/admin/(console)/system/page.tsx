@@ -5,7 +5,7 @@ import { ActionForm } from "@/app/admin/_components/action-form";
 import { Card, DateTime, Notice, PageHeader, StatusBadge, Table, td } from "@/app/admin/_components/ui";
 import { runReconciliationAction } from "@/app/admin/actions/orders";
 
-export const metadata = { title: "System" };
+export const metadata = { title: "Health check" };
 
 export default async function SystemPage() {
   const staff = await requireStaffPage();
@@ -13,7 +13,7 @@ export default async function SystemPage() {
 
   return (
     <>
-      <PageHeader title="System" description={`Deployment: ${status.deployment}. Shows whether each dependency is configured, never secret values.`} />
+      <PageHeader title="Health check" description={`Whether everything the shop relies on is set up and working (${status.deployment}). For whoever looks after the website.`} />
       <div className="grid gap-6 xl:grid-cols-2">
         <Card title="Configuration">
           <ul className="space-y-3 text-sm">

@@ -33,7 +33,6 @@ export function SiteFooter({ categories, contactEmail }: { categories: CategoryS
       <div className="border-t border-line">
         <div className="mx-auto flex max-w-shop flex-wrap items-center justify-between gap-3 px-4 py-5 text-xs text-ink-faint sm:px-6">
           <p>© {new Date().getFullYear()} {BRAND.name}. Prices in the currency of your delivery market.</p>
-          <p>Secure card payments</p>
         </div>
       </div>
     </footer>

@@ -7,7 +7,7 @@ import { ActionForm } from "@/app/admin/_components/action-form";
 import { Card, Field, Notice, PageHeader, inputClass } from "@/app/admin/_components/ui";
 import { saveSettingsAction } from "@/app/admin/actions/config";
 
-export const metadata = { title: "Store settings" };
+export const metadata = { title: "Shop settings" };
 
 export default async function SettingsPage() {
   const staff = await requireStaffPage();
@@ -47,7 +47,7 @@ export default async function SettingsPage() {
 
   return (
     <>
-      <PageHeader title="Store settings" description="Live configuration. Changes apply immediately to checkout and the storefront." />
+      <PageHeader title="Shop settings" description="Open or close the shop, the message bar, contact email and other shop-wide options. Changes show in the shop straight away." />
       <div className="mb-6">
         {status.checkout.live
           ? <Notice tone="good">Checkout is live: customers can place orders and pay.</Notice>

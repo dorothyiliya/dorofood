@@ -4,7 +4,6 @@ import { adminAction, type ActionState } from "@/lib/admin/action";
 import { checkbox, id, int, oneOf, optionalInt, optionalMoney, text } from "@/lib/admin/form";
 import { ADJUSTMENT_REASONS, changeStock, saveLocation } from "@/lib/admin/stock";
 import { saveMarket, saveShippingRule } from "@/lib/admin/markets";
-import { PAYMENT_PROVIDERS } from "@/lib/integrations/definitions";
 import { SETTINGS, SETTING_KEYS, updateSettings, type SettingKey } from "@/lib/settings";
 import { changeOwnPassword, createStaff, resetStaffPassword, updateStaff } from "@/lib/admin/staff";
 import { clearSessionCookie } from "@/lib/admin/session";
@@ -39,12 +38,12 @@ export async function saveLocationAction(_: ActionState, form: FormData) {
 export async function saveMarketAction(_: ActionState, form: FormData) {
   return adminAction("markets.manage", async (staff) => {
     const marketId = text(form, "marketId", 64) || null;
+    const manyCountries = text(form, "covers", 10) === "many";
     await saveMarket(marketId, {
-      code: text(form, "code", 40), name: text(form, "name", 80), countryCode: text(form, "countryCode", 2),
+      code: manyCountries ? "OTHER" : text(form, "code", 40), name: text(form, "name", 80), countryCode: text(form, "countryCode", 2),
       currency: oneOf(form, "currency", ["NGN", "GBP", "USD", "CAD", "EUR"] as const), status: oneOf(form, "status", ["ACTIVE", "PAUSED"] as const),
-      paymentProvider: oneOf(form, "paymentProvider", PAYMENT_PROVIDERS),
     }, staff.id);
-    return marketId ? "Market saved." : "Market created. Add a shipping rule and prices before it can sell.";
+    return marketId ? "Saved." : "Added. Now add a delivery fee, and give your products a price here.";
   }, { storefront: true });
 }
 
@@ -56,7 +55,7 @@ export async function saveShippingRuleAction(_: ActionState, form: FormData) {
       enabled: checkbox(form, "enabled"), flatRateMinor: optionalMoney(form, "flatRate"), minOrderMinor: optionalMoney(form, "minOrder"),
       maxWeightGrams: optionalInt(form, "maxWeightGrams"),
     }, staff.id);
-    return ruleId ? "Delivery rule saved." : "Delivery rule added.";
+    return ruleId ? "Delivery fee saved." : "Delivery fee added.";
   });
 }
 

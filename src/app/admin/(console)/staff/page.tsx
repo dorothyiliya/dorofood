@@ -5,7 +5,7 @@ import { ActionForm } from "@/app/admin/_components/action-form";
 import { Card, DateTime, Field, PageHeader, Select, StatusBadge, humanise, inputClass } from "@/app/admin/_components/ui";
 import { changeOwnPasswordAction, createStaffAction, resetPasswordAction, updateStaffAction } from "@/app/admin/actions/config";
 
-export const metadata = { title: "Staff" };
+export const metadata = { title: "Team" };
 const ROLES = ["OWNER", "ADMIN", "FINANCE", "FULFILMENT", "CATALOGUE", "VIEWER"] as const;
 
 export default async function StaffPage() {
@@ -16,7 +16,7 @@ export default async function StaffPage() {
 
   return (
     <>
-      <PageHeader title="Staff" description="Who can sign in to this control centre, and what each person may do." />
+      <PageHeader title="Team" description="The people who can sign in here, and what each of them is allowed to do." />
       <div className="grid gap-6 xl:grid-cols-[2fr_1fr]">
         <Card title="Accounts">
           <div className="divide-y divide-slate-100">

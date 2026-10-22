@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Globe, Package, ShieldCheck, Truck } from "@phosphor-icons/react/dist/ssr";
+import { ArrowRight, Globe, Package, Truck } from "@phosphor-icons/react/dist/ssr";
 import { BRAND } from "@/lib/brand";
 import { formatPrice, type CategorySummary, type Product } from "@/lib/catalogue";
 import { loadStorefront, type MarketSummary } from "@/lib/storefront-data";
@@ -75,13 +75,12 @@ function Hero({ products }: { products: Product[] }) {
 function HowItWorks({ paymentWindowMinutes }: { paymentWindowMinutes: number }) {
   const items = [
     { Icon: Truck, title: "Delivery priced upfront", body: "A fixed fee per order, shown before you pay." },
-    { Icon: ShieldCheck, title: "Secure payments", body: "Every payment is confirmed directly with our payment provider before your order is." },
     { Icon: Package, title: "Stock held while you pay", body: `Items in your checkout are reserved for ${paymentWindowMinutes} minutes.` },
     { Icon: Globe, title: "Export-checked abroad", body: "Orders outside Nigeria are checked before they ship." },
   ];
   return (
     <section aria-label="How ordering works" className="border-y border-line bg-surface">
-      <ul className={`${container} grid grid-cols-1 divide-y divide-line sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-4 lg:divide-x`}>
+      <ul className={`${container} grid grid-cols-1 divide-y divide-line sm:grid-cols-3 sm:divide-y-0 sm:divide-x`}>
         {items.map(({ Icon, title, body }) => (
           <li key={title} className="flex gap-3.5 py-6 lg:px-6 lg:first:pl-0">
             <Icon size={26} weight="duotone" className="mt-0.5 shrink-0 text-leaf" aria-hidden="true" />

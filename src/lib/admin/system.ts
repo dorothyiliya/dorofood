@@ -61,9 +61,9 @@ export async function systemStatus() {
     checkout: {
       live: checkoutLive,
       reasons: [
-        !settings["checkout.open"] && "The store setting \"Store accepts orders\" is off.",
-        !deploymentOk && "CHECKOUT_ENABLED is not \"true\" on this deployment.",
-        !gatewayOk && `The Nigeria market's payment gateway (${providerName(homeProvider)}) is not ready.`,
+        !settings["checkout.open"] && "\"Shop is open for orders\" is switched off in Shop settings.",
+        !deploymentOk && "Online ordering is switched off for this website (CHECKOUT_ENABLED). Ask whoever looks after the website.",
+        !gatewayOk && `Card payments for Nigeria aren't working (${providerName(homeProvider)} in Connected services).`,
       ].filter(Boolean) as string[],
     },
     jobs: await prisma.jobRun.findMany({ orderBy: { startedAt: "desc" }, take: 10 }),

@@ -8,7 +8,7 @@ import { ActionForm } from "@/app/admin/_components/action-form";
 import { Card, DateTime, Field, PageHeader, Select, StatusBadge, Table, Tabs, humanise, inputClass, td } from "@/app/admin/_components/ui";
 import { changeStockAction, saveLocationAction } from "@/app/admin/actions/config";
 
-export const metadata = { title: "Inventory" };
+export const metadata = { title: "Stock" };
 
 export default async function InventoryPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const params = await searchParams;
@@ -27,7 +27,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
 
   return (
     <>
-      <PageHeader title="Inventory" description={<>Physical stock by location. <strong>Reserved</strong> units are held for customers who are paying or have paid; they leave stock when the order is dispatched.</>} />
+      <PageHeader title="Stock" description={<>How many of each product you have. <strong>Set aside</strong> means held for customers who are paying or waiting for delivery; it leaves your stock when the order is sent. To change one product quickly, open it from Products.</>} />
       {locations.length > 1 && (
         <form className="mb-4 flex items-center gap-2 text-sm">
           <span className="text-slate-600">Location</span>
@@ -85,7 +85,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
 
       {tab === "locations" && (
         <div className="grid gap-6 xl:grid-cols-[2fr_1fr]">
-          <Card title="Locations" description={`Orders reserve stock from the fulfilment location (${settings["fulfilment.locationCode"]}), set in Store settings.`}>
+          <Card title="Locations" description={`Where your stock is kept. Orders take stock from ${settings["fulfilment.locationCode"]} (Shop settings).`}>
             <div className="divide-y divide-slate-100">
               {locations.map((l) => (
                 <div key={l.id} className="py-3">

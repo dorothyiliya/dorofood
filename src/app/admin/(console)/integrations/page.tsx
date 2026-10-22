@@ -10,7 +10,7 @@ import { ActionForm } from "@/app/admin/_components/action-form";
 import { Card, DateTime, Field, Notice, PageHeader, StatusBadge, inputClass } from "@/app/admin/_components/ui";
 import { saveIntegrationAction, testIntegrationAction } from "@/app/admin/actions/integrations";
 
-export const metadata = { title: "Integrations" };
+export const metadata = { title: "Connected services" };
 
 function shopOrigin() {
   try { return getAppBaseUrl(); } catch { return null; }
@@ -27,7 +27,7 @@ export default async function IntegrationsPage() {
 
   return (
     <>
-      <PageHeader title="Integrations" description="Connect payment gateways, AI, email and photo storage. Saved secrets are encrypted and never shown again; only their last four characters are displayed. An environment variable set in Vercel always wins over a value saved here." />
+      <PageHeader title="Connected services" description="Connect payment gateways, AI, email and photo storage. Saved secrets are encrypted and never shown again; only their last four characters are displayed. An environment variable set in Vercel always wins over a value saved here." />
       {!encryption && (
         <div className="mb-6">
           <Notice tone="warning"><strong>Secrets can&apos;t be saved here yet.</strong> Set <code>INTEGRATIONS_ENCRYPTION_KEY</code> (32+ random characters) in Vercel and redeploy, or set each integration&apos;s environment variables instead. Non-secret settings and on/off switches still work.</Notice>
@@ -66,7 +66,7 @@ function IntegrationCard({ def, state, editable, encryption, origin, usedBy }: {
         {state.storageError && <Notice tone="critical">{state.storageError}</Notice>}
         {usedBy && (
           <p className="text-sm text-slate-600">
-            {usedBy.length ? <>Takes payments for: <strong className="font-medium text-slate-800">{usedBy.join(", ")}</strong>.</> : "Not used by any market yet. Choose a gateway per market in Markets & delivery."}
+            {usedBy.length ? <>Takes payments for: <strong className="font-medium text-slate-800">{usedBy.join(", ")}</strong>.</> : "Not in use right now."}
           </p>
         )}
         {def.webhookPath && (

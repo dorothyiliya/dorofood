@@ -52,3 +52,26 @@ export async function dashboardData() {
     settings,
   };
 }
+
+export type SetupStep = { title: string; detail: string; href: string; action: string; done: boolean };
+
+/** The first-run checklist on the Home page: what a new shop still needs before it can sell. */
+export async function setupSteps(): Promise<SetupStep[]> {
+  const settings = await getSettings();
+  const [markets, sellable, stocked] = await Promise.all([
+    prisma.market.findMany({ where: { status: "ACTIVE" }, include: { shippingRules: { where: { enabled: true, flatRateMinor: { not: null } }, take: 1 } } }),
+    prisma.product.count({ where: { status: "ACTIVE", variants: { some: { status: "ACTIVE", marketProducts: { some: { status: "ACTIVE", market: { code: "NG", status: "ACTIVE" } } } } } } }),
+    prisma.inventoryBalance.count({ where: { quantityOnHand: { gt: 0 } } }),
+  ]);
+  const withoutFee = markets.filter((m) => m.shippingRules.length === 0);
+  return [
+    {
+      title: "Set your delivery fees",
+      detail: markets.length === 0 ? "Add the places you deliver to." : withoutFee.length ? `Still needed for: ${withoutFee.map((m) => m.name).join(", ")}.` : "Every place you sell to has a delivery fee.",
+      href: "/admin/markets", action: "Set delivery fees", done: markets.length > 0 && withoutFee.length === 0,
+    },
+    { title: "Add your products", detail: sellable ? `${sellable} product${sellable === 1 ? " is" : "s are"} in the shop.` : "Add a product with a photo, a price and how many you have.", href: "/admin/catalogue/new", action: "Add a product", done: sellable > 0 },
+    { title: "Add your stock", detail: stocked ? "You have stock recorded." : "Tell the shop how many of each product you have, so it doesn't sell what you don't have.", href: "/admin/catalogue", action: "Go to products", done: stocked > 0 },
+    { title: "Open the shop", detail: settings["checkout.open"] ? "Customers can place orders." : "When everything above is done, switch on \"Shop is open for orders\".", href: "/admin/settings", action: "Open shop settings", done: settings["checkout.open"] },
+  ];
+}

@@ -2,18 +2,27 @@ import { AdminLink as Link } from "@/app/admin/_components/admin-link";
 import { prisma } from "@/lib/prisma";
 import { requireStaffPage } from "@/lib/admin/session";
 import { can } from "@/lib/admin/auth";
-import { Card, Notice, PageHeader } from "@/app/admin/_components/ui";
-import { ProductForm } from "@/app/admin/_components/product-form";
+import { getIntegration } from "@/lib/integrations/store";
+import { Notice, PageHeader } from "@/app/admin/_components/ui";
+import { NewProductForm } from "@/app/admin/_components/product-form";
 
-export const metadata = { title: "New product" };
+export const metadata = { title: "Add a product" };
 
 export default async function NewProductPage() {
   const staff = await requireStaffPage();
-  const categories = await prisma.category.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] });
+  const [categories, markets, ai, storage] = await Promise.all([
+    prisma.category.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
+    prisma.market.findMany({ where: { status: { in: ["ACTIVE", "PAUSED"] } }, select: { id: true, code: true, name: true, currency: true, countryCode: true, status: true } }),
+    getIntegration("nvidia"),
+    getIntegration("storage"),
+  ]);
   return (
-    <>
-      <PageHeader title="New product" description="Create the product first; then add variants (SKUs), prices and stock." actions={<Link href="/admin/catalogue" className="text-sm text-slate-600 hover:underline">← Catalogue</Link>} />
-      {can(staff.role, "catalogue.manage") ? <Card><ProductForm categories={categories} /></Card> : <Notice tone="warning">Your role cannot create products.</Notice>}
-    </>
+    <div className="mx-auto max-w-3xl">
+      <PageHeader title="Add a product" description="Fill in the five steps below and press Add product. You can change anything later."
+        actions={<Link href="/admin/catalogue" className="text-sm text-slate-600 hover:underline">← All products</Link>} />
+      {can(staff.role, "catalogue.manage")
+        ? <NewProductForm categories={categories} markets={markets} aiReady={ai.active} uploads={storage.active} />
+        : <Notice tone="warning">Your account can look at products but not add them. Ask the shop owner if you need this.</Notice>}
+    </div>
   );
 }

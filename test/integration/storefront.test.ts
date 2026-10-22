@@ -90,7 +90,7 @@ describe("storefront reflects the admin", () => {
     const { productId } = await prisma.productVariant.findUniqueOrThrow({ where: { id: f.crisps } });
     await expect(addProductImage(productId, { url: "http://insecure.example.com/a.jpg", altText: "Pack front" }, "staff")).rejects.toThrow(/https/);
     await expect(addProductImage(productId, { url: "javascript:alert(1)", altText: "Pack front" }, "staff")).rejects.toThrow();
-    await expect(addProductImage(productId, { url: "https://img.example.com/a.jpg", altText: "x" }, "staff")).rejects.toThrow(/screen readers/);
+    await expect(addProductImage(productId, { url: "https://img.example.com/a.jpg", altText: "x" }, "staff")).rejects.toThrow(/Describe the photo/);
     const first = await addProductImage(productId, { url: "https://img.example.com/1.jpg", altText: "Front of pack" }, "staff");
     const second = await addProductImage(productId, { url: "https://img.example.com/2.jpg", altText: "Back of pack" }, "staff");
     await makePrimaryImage(second.id, "staff");

@@ -3,7 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { Card, DateTime, PageHeader, Pagination, Table, humanise, inputClass, pageParam, stringParam, td } from "@/app/admin/_components/ui";
 
-export const metadata = { title: "Audit log" };
+export const metadata = { title: "Activity log" };
 const PAGE_SIZE = 100;
 
 const ENTITY_LINKS: Record<string, (id: string) => string> = {
@@ -26,7 +26,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
 
   return (
     <>
-      <PageHeader title="Audit log" description="An append-only record of every change: who, what and when." />
+      <PageHeader title="Activity log" description="Every change anyone made here: who did it, what changed and when. Nothing can be removed from it." />
       <Card>
         <form className="mb-4 flex flex-wrap items-end gap-3">
           <select name="action" defaultValue={action} aria-label="Action" className={`${inputClass} sm:!w-64`}>
