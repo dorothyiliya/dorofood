@@ -51,7 +51,82 @@ export const SETTINGS = {
     schema: z.string().trim().pipe(z.email()),
     default: "hello@dorocityfoods.com",
   },
+
+  /* Search engines (edited on the SEO page). */
+  "seo.titleTemplate": {
+    group: "seo",
+    label: "Title pattern",
+    help: "How page titles look on Google and in browser tabs. {title} is replaced by each page's own title.",
+    schema: z.string().trim().max(90).refine((v) => v.includes("{title}"), "The pattern must include {title}."),
+    default: "{title} | Dorocity Foods",
+  },
+  "seo.homeTitle": {
+    group: "seo",
+    label: "Home page title",
+    help: "The title of your home page on Google. Include what you sell.",
+    schema: z.string().trim().min(5, "Enter a home page title.").max(90),
+    default: "Dorocity Foods | Nigerian groceries online",
+  },
+  "seo.defaultDescription": {
+    group: "seo",
+    label: "Shop description",
+    help: "Shown on Google under your home page, and used for any page without its own description.",
+    schema: z.string().trim().min(20, "Write at least a sentence.").max(320),
+    default: "Nigerian groceries, snacks, drinks and pantry staples, priced in naira with delivery shown before you pay.",
+  },
+  "seo.socialImage": {
+    group: "seo",
+    label: "Sharing picture",
+    help: "Shown when someone shares your site on WhatsApp, Facebook or X and the page has no picture of its own.",
+    schema: z.union([z.literal(""), z.string().trim().url("Use a full picture address starting with https://").max(2000)]),
+    default: "",
+  },
+  "seo.socialProfiles": {
+    group: "seo",
+    label: "Your social media pages",
+    help: "One address per line (Instagram, Facebook, TikTok...). Helps Google connect them to your shop.",
+    schema: z.string().trim().max(2000),
+    default: "",
+  },
+  "seo.googleVerification": {
+    group: "seo",
+    label: "Google Search Console code",
+    help: "From Search Console: choose the HTML tag option and paste only the code inside content=\"...\".",
+    schema: z.string().trim().max(200).regex(/^[A-Za-z0-9_-]*$/, "Paste only the code, without quotes or the <meta> tag."),
+    default: "",
+  },
+  "seo.bingVerification": {
+    group: "seo",
+    label: "Bing Webmaster code",
+    help: "Optional. The code from Bing Webmaster Tools.",
+    schema: z.string().trim().max(200).regex(/^[A-Za-z0-9_-]*$/, "Paste only the code, without quotes or the <meta> tag."),
+    default: "",
+  },
+  "seo.hideFromSearch": {
+    group: "seo",
+    label: "Hide the whole site from search engines",
+    help: "Only for a site that isn't ready yet. While this is on, Google won't list any of your pages.",
+    schema: z.boolean(),
+    default: false,
+  },
+  "blog.title": {
+    group: "seo",
+    label: "Blog name",
+    help: "Shown at the top of the blog and in its Google title.",
+    schema: z.string().trim().min(2, "Enter a blog name.").max(60),
+    default: "The Dorocity Kitchen",
+  },
+  "blog.description": {
+    group: "seo",
+    label: "Blog description",
+    help: "One sentence about what you write about.",
+    schema: z.string().trim().max(300),
+    default: "Recipes, food stories and news from Dorocity Foods.",
+  },
 } as const;
+
+/** Settings shown on the Shop settings page (the rest have their own pages). */
+export const SHOP_SETTING_KEYS = (Object.keys(SETTINGS) as (keyof typeof SETTINGS)[]).filter((k) => !("group" in SETTINGS[k]));
 
 export type SettingKey = keyof typeof SETTINGS;
 export type Settings = { [K in SettingKey]: z.infer<(typeof SETTINGS)[K]["schema"]> };

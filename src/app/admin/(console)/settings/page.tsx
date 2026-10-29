@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireStaffPage } from "@/lib/admin/session";
 import { can } from "@/lib/admin/auth";
-import { SETTINGS, SETTING_KEYS, getSettings } from "@/lib/settings";
+import { SETTINGS, SHOP_SETTING_KEYS, getSettings } from "@/lib/settings";
 import { systemStatus } from "@/lib/admin/system";
 import { ActionForm } from "@/app/admin/_components/action-form";
 import { Card, Field, Notice, PageHeader, inputClass } from "@/app/admin/_components/ui";
@@ -16,7 +16,7 @@ export default async function SettingsPage() {
 
   const fields = (
     <fieldset disabled={!editable} className="grid gap-5 md:grid-cols-2">
-      {SETTING_KEYS.map((key) => {
+      {SHOP_SETTING_KEYS.map((key) => {
         const def = SETTINGS[key];
         const value = settings[key];
         return (

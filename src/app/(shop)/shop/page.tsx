@@ -1,8 +1,18 @@
 import type { Metadata } from "next";
 import { loadStorefront } from "@/lib/storefront-data";
+import { pageMetadata } from "@/lib/seo/site";
 import { SORTS, ShopBrowser, type SortKey } from "@/components/shop/shop-browser";
 
-export const metadata: Metadata = { title: "Shop groceries" };
+export async function generateMetadata({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }): Promise<Metadata> {
+  const [data, params] = await Promise.all([loadStorefront(), searchParams]);
+  const category = data.categories.find((c) => c.slug === params.category);
+  return pageMetadata({
+    title: category ? `${category.name}: Nigerian groceries` : "Shop Nigerian groceries online",
+    path: category ? `/shop?category=${category.slug}` : "/shop",
+    // Searches and sorted views repeat the same products.
+    noindex: typeof params.q === "string" || typeof params.sort === "string",
+  });
+}
 
 export default async function ShopPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const [data, params] = await Promise.all([loadStorefront(), searchParams]);

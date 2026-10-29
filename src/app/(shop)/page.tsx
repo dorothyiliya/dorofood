@@ -3,18 +3,28 @@ import { ArrowRight, Globe, Package, Truck } from "@phosphor-icons/react/dist/ss
 import { BRAND } from "@/lib/brand";
 import { formatPrice, type CategorySummary, type Product } from "@/lib/catalogue";
 import { loadStorefront, type MarketSummary } from "@/lib/storefront-data";
+import type { Metadata } from "next";
+import { absoluteUrl, jsonLd, organizationJsonLd, pageMetadata, seoSettings } from "@/lib/seo/site";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const seo = await seoSettings().catch(() => null);
+  return pageMetadata({ title: seo?.homeTitle ?? BRAND.name, absoluteTitle: true, path: "/" });
+}
 import { CategoryGlyph, ProductArt } from "@/components/shop/product-art";
 import { ProductCard } from "@/components/shop/product-card";
 import { ProductRail } from "@/components/shop/product-rail";
 
 export default async function HomePage() {
-  const data = await loadStorefront();
+  const [data, organization] = await Promise.all([loadStorefront(), organizationJsonLd().catch(() => null)]);
+  const website = { "@context": "https://schema.org", "@type": "WebSite", name: BRAND.name, url: absoluteUrl("/"), potentialAction: { "@type": "SearchAction", target: `${absoluteUrl("/shop")}?q={search_term_string}`, "query-input": "required name=search_term_string" } };
   const products = data.products;
   const newest = [...products].sort((a, b) => b.addedAt.localeCompare(a.addedAt)).slice(0, 10);
   const spotlight = data.categories.find((c) => c.count >= 2);
 
   return (
     <>
+      {organization && <script type="application/ld+json" dangerouslySetInnerHTML={jsonLd(organization)} />}
+      <script type="application/ld+json" dangerouslySetInnerHTML={jsonLd(website)} />
       <Hero products={products} />
       <HowItWorks paymentWindowMinutes={data.paymentWindowMinutes} />
       {data.categories.length > 0 && <Aisles categories={data.categories} />}

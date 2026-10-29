@@ -170,6 +170,14 @@ export function ProductDetailsForm({ product, categories, aiReady, disabled, sho
           </Field>
         </div>
       </MoreOptions>
+      <MoreOptions label="How it looks on Google">
+        <Field label="Google title" help={`Leave empty to use the product name. Best under 60 characters. Your shop name is added automatically.`}>
+          <input name="seoTitle" defaultValue={product.seoTitle ?? ""} maxLength={120} placeholder={product.name} className={inputClass} />
+        </Field>
+        <Field label="Google description" help="One or two sentences shown under the title on Google (about 120 to 160 characters). Leave empty to use the start of the description.">
+          <textarea name="seoDescription" defaultValue={product.seoDescription ?? ""} maxLength={320} rows={2} className={inputClass} />
+        </Field>
+      </MoreOptions>
     </fieldset>
   );
   if (disabled) return fields;

@@ -12,7 +12,7 @@ import { INTEGRATIONS } from "../src/lib/integrations/definitions";
 // The server must not inherit real provider credentials from the developer's shell.
 const NO_CREDENTIALS = Object.fromEntries(INTEGRATIONS.flatMap((d) => d.fields.flatMap((f) => (f.env ? [[f.env, undefined]] : []))).concat([["INTEGRATIONS_ENCRYPTION_KEY", undefined]]));
 
-const PORT = 3100;
+const PORT = Number(process.env.SMOKE_PORT) || 3100;
 const BASE = `http://127.0.0.1:${PORT}`;
 const DATABASE_URL = testDatabaseUrl();
 const CRON_SECRET = "smoke-cron-secret-0123456789abcdef012345";

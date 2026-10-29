@@ -61,6 +61,17 @@ npm run admin:create -- --email you@example.com --name "Your Name"
 
 You are prompted for the password (hidden; 12+ characters). Further staff are added from **Staff** in the admin.
 
+### Blog, pages and SEO
+
+**Website → Blog posts / Pages / Picture library / SEO** in the admin (Owner, Admin, Catalogue and the new Editor role):
+
+- **Editor** (TipTap, WordPress-style): headings, bold/italic/underline, links (Ctrl/Cmd+K), lists, quotes, alignment, pictures with descriptions and captions, YouTube videos, tables, dividers, undo/redo, Markdown shortcuts (`##`, `-`, `>`). Drafts save themselves every 30 seconds; Publish, Schedule (a future date), Update, Switch back to draft, Preview, Trash/Restore, and 25 earlier versions per post.
+- **Posts** have categories, tags, a featured picture, a summary and "Shop this post" products; **pages** (About, Delivery…) live at `/<address>` and can be listed in the footer.
+- **SEO tab** in the editor: focus keyphrase, live Google and social previews, Google title/description with length meters, and a Yoast-style checklist plus readability checks in plain language (optional AI-written description).
+- **SEO page**: site title pattern, home title, default description, sharing picture, social profiles, Google/Bing verification, "hide the whole site", and redirects (renamed posts get one automatically).
+- **Search engines**: `/sitemap.xml`, `/robots.txt` (blocks the admin host, preview deployments and checkout), `/blog/feed.xml` (RSS), canonical URLs, Open Graph/Twitter cards, and JSON-LD (Organization, WebSite, Product with price and stock, BlogPosting, BreadcrumbList). Products have their own Google title and description.
+- **Safety**: the editor's JSON is the source of truth and is rendered to HTML through an allowlist (`src/lib/content/document.ts`): no scripts, only http(s)/mailto/tel/on-site links, https images and YouTube embeds.
+
 ### Integrations
 
 **Admin → Integrations** (Owner and Admin roles) holds every third-party connection:

@@ -20,6 +20,7 @@ function productInput(form: FormData) {
     categoryId: text(form, "categoryId", 40),
     originCountry: text(form, "originCountry", 2),
     status: oneOf(form, "status", STATUS),
+    ...(form.has("seoTitle") ? { seoTitle: text(form, "seoTitle", 120), seoDescription: text(form, "seoDescription", 320) } : {}),
   };
 }
 

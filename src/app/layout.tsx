@@ -11,7 +11,8 @@ export const metadata: Metadata = {
   title: { default: `${BRAND.name} | Nigerian groceries online`, template: `%s | ${BRAND.name}` },
   description: BRAND.description,
   // Preview deployments each have their own URL, which Vercel provides at build time.
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000")),
+  // The real shop address in production (APP_BASE_URL); preview deployments use their own URL.
+  metadataBase: new URL(process.env.APP_BASE_URL || process.env.NEXT_PUBLIC_SITE_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000")),
   openGraph: { title: BRAND.name, description: BRAND.description, type: "website" },
 };
 

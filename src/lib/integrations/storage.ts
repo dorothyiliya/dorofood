@@ -69,7 +69,8 @@ async function put(config: StorageConfig, key: string, body: Uint8Array<ArrayBuf
   }
 }
 
-export async function uploadProductPhoto(file: File): Promise<string> {
+/** Checks and uploads an image; the type comes from the file's bytes, never its name. */
+export async function uploadImage(file: File, folder: "products" | "media" = "products") {
   if (file.size === 0) throw new CommerceError("PHOTO_EMPTY", 422, "Choose a photo to upload.");
   if (file.size > MAX_PHOTO_BYTES) throw new CommerceError("PHOTO_TOO_LARGE", 422, "Photos must be 4 MB or smaller.");
   const bytes = new Uint8Array(await file.arrayBuffer());
@@ -77,9 +78,23 @@ export async function uploadProductPhoto(file: File): Promise<string> {
   if (!type) throw new CommerceError("PHOTO_TYPE", 422, "Upload a JPEG, PNG or WebP image.");
   const config = await getStorageConfig();
   const now = new Date();
-  const key = `products/${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, "0")}/${randomUUID()}.${TYPES[type]}`;
+  const key = `${folder}/${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, "0")}/${randomUUID()}.${TYPES[type]}`;
   await put(config, key, bytes, type, "public, max-age=31536000, immutable");
-  return `${config.publicBaseUrl}/${key}`;
+  return { url: `${config.publicBaseUrl}/${key}`, key, contentType: type, sizeBytes: bytes.length };
+}
+
+export async function uploadProductPhoto(file: File): Promise<string> {
+  return (await uploadImage(file, "products")).url;
+}
+
+/** Best effort: a file left behind in storage is harmless. */
+export async function deleteStoredObject(key: string) {
+  try {
+    const config = await getStorageConfig();
+    await s3(config, "DELETE", key, { timeoutMs: 15_000 });
+  } catch (error) {
+    console.warn("[storage] delete failed", key, (error as Error).message);
+  }
 }
 
 /** Writes and deletes a small object to prove the credentials and bucket work. */

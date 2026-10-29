@@ -99,6 +99,8 @@ export const loadStorefront = cache(async function loadStorefront(): Promise<Sto
         compareAtKobo: homePrice.compareAtMinor ? Number(homePrice.compareAtMinor) : undefined,
         prices: Object.fromEntries(v.marketProducts.map((mp) => [mp.market.code, { minor: Number(mp.priceMinor), compareAt: mp.compareAtMinor ? Number(mp.compareAtMinor) : undefined }])),
         description: v.product.description,
+        seoTitle: v.product.seoTitle ?? undefined,
+        seoDescription: v.product.seoDescription ?? undefined,
         images: v.product.media.map((m) => ({ url: m.url, alt: m.altText })),
         pack: packFor(v.product.slug, position),
         icon: categoryIcon(category),

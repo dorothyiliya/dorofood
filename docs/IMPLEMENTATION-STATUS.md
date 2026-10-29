@@ -15,6 +15,7 @@ See [PRODUCTION-AUDIT.md](PRODUCTION-AUDIT.md) for the full audit, the defect li
 - Admin control centre (`/admin`): staff auth with roles, dashboard, orders, payments, refunds, catalogue, inventory, markets and delivery, store settings, integrations, staff, audit log, system status
 - Integrations: encrypted, write-only secrets with env-var override; connection tests; NVIDIA "Draft with AI" for product descriptions; Resend order emails through a transactional outbox; S3-compatible photo uploads with type sniffing
 - Storefront reads products, categories and settings from the database
+- Blog and pages with a WordPress-style editor (drafts, autosave, scheduling, revisions, trash, preview, media library), SEO analysis per post, site-wide SEO settings, redirects, sitemap, robots, RSS and structured data
 
 ## Not built
 - Storefront checkout form and persistent basket

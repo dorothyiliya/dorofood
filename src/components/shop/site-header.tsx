@@ -98,10 +98,10 @@ export function SiteHeader({ announcement, categories }: { announcement: string;
 function ActiveCategoryNav({ categories }: { categories: CategorySummary[] }) {
   const pathname = usePathname();
   const params = useSearchParams();
-  return <CategoryNav categories={categories} active={pathname === "/shop" ? params.get("category") ?? "" : null} />;
+  return <CategoryNav categories={categories} active={pathname === "/shop" ? params.get("category") ?? "" : null} blog={pathname === "/blog" || pathname.startsWith("/blog/")} />;
 }
 
-function CategoryNav({ categories, active }: { categories: CategorySummary[]; active: string | null }) {
+function CategoryNav({ categories, active, blog = false }: { categories: CategorySummary[]; active: string | null; blog?: boolean }) {
   return (
     <nav aria-label="Categories" className="mx-auto max-w-shop">
       <ul className="scrollbar-none flex gap-1 overflow-x-auto px-4 pb-2.5 sm:px-6">
@@ -109,6 +109,7 @@ function CategoryNav({ categories, active }: { categories: CategorySummary[]; ac
         {categories.map((c) => (
           <li key={c.slug}><NavPill href={`/shop?category=${c.slug}`} active={active === c.slug}>{c.name}</NavPill></li>
         ))}
+        <li className="ml-auto border-l border-line pl-1"><NavPill href="/blog" active={blog}>Blog</NavPill></li>
       </ul>
     </nav>
   );

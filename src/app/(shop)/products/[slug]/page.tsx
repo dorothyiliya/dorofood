@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CaretRight } from "@phosphor-icons/react/dist/ssr";
 import { loadProduct } from "@/lib/storefront-data";
+import { absoluteUrl, breadcrumbJsonLd, followRedirect, jsonLd, pageMetadata } from "@/lib/seo/site";
 import { ProductArt } from "@/components/shop/product-art";
 import { Price, SavingBadge } from "@/components/shop/price";
 import { ProductPurchase } from "@/components/shop/product-purchase";
@@ -11,22 +12,48 @@ import { ProductRail } from "@/components/shop/product-rail";
 type Params = { params: Promise<{ slug: string }> };
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
-  const { product } = await loadProduct((await params).slug);
+  const { data, product } = await loadProduct((await params).slug);
   if (!product) return { title: "Product not found" };
-  return {
-    title: product.name,
-    description: `${product.name}, ${product.size}. ${product.description}`.slice(0, 160),
-    openGraph: product.images[0] ? { images: [{ url: product.images[0].url, alt: product.images[0].alt }] } : undefined,
-  };
+  return pageMetadata({
+    title: product.seoTitle || product.name,
+    description: product.seoDescription || `${product.name}, ${product.size}. ${product.description}`.slice(0, 160),
+    path: `/products/${product.slug}`,
+    image: product.images[0] ? { url: product.images[0].url, alt: product.images[0].alt } : null,
+    noindex: data.source !== "database",
+  });
 }
 
 export default async function ProductPage({ params }: Params) {
-  const { data, product } = await loadProduct((await params).slug);
-  if (!product) notFound();
+  const slug = (await params).slug;
+  const { data, product } = await loadProduct(slug);
+  if (!product) {
+    await followRedirect(`/products/${slug}`);
+    notFound();
+  }
+  // Rich results on Google (price, stock), only for the real catalogue.
+  const structured = data.source === "database" ? {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: product.name,
+    description: product.seoDescription || product.description,
+    ...(product.images.length ? { image: product.images.map((i) => absoluteUrl(i.url)) } : {}),
+    ...(product.brand ? { brand: { "@type": "Brand", name: product.brand } } : {}),
+    offers: {
+      "@type": "Offer",
+      url: absoluteUrl(`/products/${product.slug}`),
+      price: (product.priceKobo / 100).toFixed(2),
+      priceCurrency: "NGN",
+      availability: product.available ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+      itemCondition: "https://schema.org/NewCondition",
+    },
+  } : null;
+  const crumbs = breadcrumbJsonLd([{ name: "Home", path: "/" }, { name: product.category, path: `/shop?category=${product.categorySlug}` }, { name: product.name, path: `/products/${product.slug}` }]);
   const related = data.products.filter((p) => p.categorySlug === product.categorySlug && p.id !== product.id).slice(0, 10);
 
   return (
     <div className="mx-auto max-w-shop px-4 pt-6 sm:px-6">
+      {structured && <script type="application/ld+json" dangerouslySetInnerHTML={jsonLd(structured)} />}
+      {structured && <script type="application/ld+json" dangerouslySetInnerHTML={jsonLd(crumbs)} />}
       <nav aria-label="Breadcrumb" className="text-sm text-ink-soft">
         <ol className="flex flex-wrap items-center gap-1.5">
           <li><Link href="/" className="hover:text-ink">Home</Link></li>

@@ -3,7 +3,7 @@ import { BRAND } from "@/lib/brand";
 import type { CategorySummary } from "@/lib/catalogue";
 import { BrandMark } from "@/components/shop/site-header";
 
-export function SiteFooter({ categories, contactEmail }: { categories: CategorySummary[]; contactEmail: string }) {
+export function SiteFooter({ categories, contactEmail, pages = [] }: { categories: CategorySummary[]; contactEmail: string; pages?: { title: string; slug: string }[] }) {
   return (
     <footer className="mt-24 border-t border-line bg-surface">
       <div className="mx-auto grid max-w-shop gap-10 px-4 py-14 sm:px-6 md:grid-cols-[1.4fr_1fr_1fr]">
@@ -26,6 +26,8 @@ export function SiteFooter({ categories, contactEmail }: { categories: CategoryS
           <h2 className="text-sm font-semibold">Help</h2>
           <ul className="mt-4 space-y-2.5 text-sm text-ink-soft">
             <li><Link href="/#delivery" className="hover:text-ink">Delivery and shipping</Link></li>
+            <li><Link href="/blog" className="hover:text-ink">Blog and recipes</Link></li>
+            {pages.map((p) => <li key={p.slug}><Link href={`/${p.slug}`} className="hover:text-ink">{p.title}</Link></li>)}
             <li><a href={`mailto:${contactEmail}`} className="hover:text-ink">{contactEmail}</a></li>
           </ul>
         </nav>

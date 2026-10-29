@@ -21,6 +21,8 @@ export const productSchema = z.object({
   categoryId: optional(z.string().trim().max(40)),
   originCountry: z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/, "Choose the country the product is made in."),
   status,
+  seoTitle: z.string().trim().max(120).optional().transform((v) => v || null),
+  seoDescription: z.string().trim().max(320).optional().transform((v) => v || null),
 });
 
 export const variantSchema = z.object({

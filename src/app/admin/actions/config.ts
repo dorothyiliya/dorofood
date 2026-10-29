@@ -8,7 +8,7 @@ import { SETTINGS, SETTING_KEYS, updateSettings, type SettingKey } from "@/lib/s
 import { changeOwnPassword, createStaff, resetStaffPassword, updateStaff } from "@/lib/admin/staff";
 import { clearSessionCookie } from "@/lib/admin/session";
 
-const ROLES = ["OWNER", "ADMIN", "FINANCE", "FULFILMENT", "CATALOGUE", "VIEWER"] as const;
+const ROLES = ["OWNER", "ADMIN", "FINANCE", "FULFILMENT", "CATALOGUE", "EDITOR", "VIEWER"] as const;
 
 /* ---------------------------------------------------------------- inventory */
 

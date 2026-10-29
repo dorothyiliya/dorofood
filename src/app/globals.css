@@ -95,3 +95,39 @@ body {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }
+
+/* Blog posts and pages: shared by the public article and the admin editor, so
+   what staff see while writing is what readers get. Colours come from the
+   surrounding text, so it reads well in both the shop's themes and the admin. */
+.article-body { font-size: 1.0625rem; line-height: 1.75; overflow-wrap: anywhere; }
+.article-body > * + * { margin-top: 1.15em; }
+.article-body h2, .article-body h3, .article-body h4 { font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif; font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; scroll-margin-top: 8rem; }
+.article-body h2 { font-size: 1.65em; margin-top: 1.8em; }
+.article-body h3 { font-size: 1.3em; margin-top: 1.6em; }
+.article-body h4 { font-size: 1.1em; margin-top: 1.4em; }
+.article-body a { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; text-decoration-color: rgb(var(--leaf)); font-weight: 500; }
+.article-body a:hover { text-decoration-color: currentColor; }
+.article-body ul, .article-body ol { padding-left: 1.4em; }
+.article-body ul { list-style: disc; }
+.article-body ol { list-style: decimal; }
+.article-body li + li { margin-top: 0.35em; }
+.article-body li > p { margin: 0; }
+.article-body blockquote { border-left: 4px solid rgb(var(--leaf)); padding: 0.2em 0 0.2em 1.1em; font-size: 1.12em; font-style: italic; opacity: 0.92; }
+.article-body hr { border: 0; border-top: 1px solid color-mix(in srgb, currentColor 18%, transparent); margin: 2.2em 0; }
+.article-body img { display: block; max-width: 100%; height: auto; border-radius: 1rem; }
+.article-body figure { margin-left: 0; margin-right: 0; }
+.article-body figcaption { margin-top: 0.5em; font-size: 0.85em; text-align: center; opacity: 0.7; }
+.article-body code { font-size: 0.9em; padding: 0.15em 0.35em; border-radius: 0.35em; background: color-mix(in srgb, currentColor 8%, transparent); }
+.article-body pre { padding: 1em 1.2em; border-radius: 0.8em; overflow-x: auto; background: color-mix(in srgb, currentColor 7%, transparent); font-size: 0.9em; line-height: 1.6; }
+.article-body pre code { padding: 0; background: none; }
+.article-body .table-scroll, .article-body .tableWrapper { overflow-x: auto; }
+.article-body table { width: 100%; border-collapse: collapse; font-size: 0.95em; }
+.article-body th, .article-body td { border: 1px solid color-mix(in srgb, currentColor 18%, transparent); padding: 0.5em 0.75em; text-align: left; vertical-align: top; }
+.article-body th { font-weight: 600; background: color-mix(in srgb, currentColor 5%, transparent); }
+.article-body th > p, .article-body td > p { margin: 0; }
+.article-body .video, .article-body div[data-youtube-video] { position: relative; aspect-ratio: 16 / 9; }
+.article-body .video iframe, .article-body div[data-youtube-video] iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; border-radius: 1rem; }
+/* Editor-only touches */
+.article-body.ProseMirror p.is-editor-empty:first-child::before { content: attr(data-placeholder); float: left; height: 0; pointer-events: none; opacity: 0.4; }
+.article-body.ProseMirror img.ProseMirror-selectednode, .article-body.ProseMirror div[data-youtube-video].ProseMirror-selectednode { outline: 3px solid rgb(var(--leaf)); outline-offset: 2px; }
+.article-body.ProseMirror .selectedCell { background: color-mix(in srgb, rgb(var(--leaf)) 18%, transparent); }

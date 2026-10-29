@@ -6,7 +6,7 @@ import { Card, DateTime, Field, PageHeader, Select, StatusBadge, humanise, input
 import { changeOwnPasswordAction, createStaffAction, resetPasswordAction, updateStaffAction } from "@/app/admin/actions/config";
 
 export const metadata = { title: "Team" };
-const ROLES = ["OWNER", "ADMIN", "FINANCE", "FULFILMENT", "CATALOGUE", "VIEWER"] as const;
+const ROLES = ["OWNER", "ADMIN", "FINANCE", "FULFILMENT", "CATALOGUE", "EDITOR", "VIEWER"] as const;
 
 export default async function StaffPage() {
   const staff = await requireStaffPage();

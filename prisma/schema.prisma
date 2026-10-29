@@ -101,20 +101,23 @@ enum StockMovementReason {
 }
 
 model Product {
-  id            String             @id @default(cuid())
-  slug          String             @unique
-  name          String
-  description   String             @db.Text
-  brand         String?
-  originCountry String             @default("NG")
-  status        RecordStatus       @default(DRAFT)
-  categoryId    String?
-  category      Category?          @relation(fields: [categoryId], references: [id])
-  media         ProductMedia[]
-  attributes    ProductAttribute[]
-  variants      ProductVariant[]
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
+  id             String             @id @default(cuid())
+  slug           String             @unique
+  name           String
+  description    String             @db.Text
+  brand          String?
+  originCountry  String             @default("NG")
+  status         RecordStatus       @default(DRAFT)
+  /// Search engine listing; empty means "use the name and description".
+  seoTitle       String?
+  seoDescription String?
+  categoryId     String?
+  category       Category?          @relation(fields: [categoryId], references: [id])
+  media          ProductMedia[]
+  attributes     ProductAttribute[]
+  variants       ProductVariant[]
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
 
   @@index([status, categoryId])
 }
@@ -580,6 +583,7 @@ enum StaffRole {
   FINANCE
   FULFILMENT
   CATALOGUE
+  EDITOR
   VIEWER
 }
 
@@ -597,6 +601,7 @@ model StaffUser {
   lastLoginAt       DateTime?
   passwordChangedAt DateTime       @default(now())
   sessions          StaffSession[]
+  posts             Post[]
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
 }
@@ -679,4 +684,124 @@ model Notification {
 
   @@index([status, createdAt])
   @@index([orderId])
+}
+
+/**
+ * ------------------------------------------------------------- blog & pages
+ */
+
+enum PostType {
+  POST
+  PAGE
+}
+
+enum PostStatus {
+  DRAFT
+  PUBLISHED
+  TRASHED
+}
+
+/// Blog posts and standalone pages. The editor's JSON is the source of truth;
+/// sanitised HTML and plain text are rendered from it on every save.
+model Post {
+  id               String         @id @default(cuid())
+  type             PostType       @default(POST)
+  title            String
+  slug             String
+  excerpt          String?        @db.Text
+  contentJson      Json
+  contentHtml      String         @db.Text
+  contentText      String         @db.Text
+  wordCount        Int            @default(0)
+  status           PostStatus     @default(DRAFT)
+  /// Live when PUBLISHED and publishedAt <= now; a later date means scheduled.
+  publishedAt      DateTime?
+  featuredImageUrl String?
+  featuredImageAlt String?
+  authorId         String?
+  author           StaffUser?     @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  categories       BlogCategory[]
+  tags             BlogTag[]
+  /// Products shown under the post ("Shop this post").
+  productIds       String[]       @default([])
+  /// Pages only: listed in the shop footer.
+  showInFooter     Boolean        @default(false)
+  seoTitle         String?
+  seoDescription   String?
+  focusKeyphrase   String?
+  canonicalUrl     String?
+  noindex          Boolean        @default(false)
+  socialImageUrl   String?
+  seoScore         Int?
+  readabilityScore Int?
+  trashedAt        DateTime?
+  revisions        PostRevision[]
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@unique([type, slug])
+  @@index([type, status, publishedAt])
+}
+
+/// Saved versions of a post, newest kept; restoring copies one back into the post.
+model PostRevision {
+  id          String   @id @default(cuid())
+  postId      String
+  post        Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  title       String
+  excerpt     String?  @db.Text
+  contentJson Json
+  authorId    String?
+  createdAt   DateTime @default(now())
+
+  @@index([postId, createdAt])
+}
+
+model BlogCategory {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?  @db.Text
+  sortOrder   Int      @default(0)
+  posts       Post[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model BlogTag {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  posts     Post[]
+  createdAt DateTime @default(now())
+}
+
+/// Old address -> new address. Created automatically when a published post's
+/// address changes, or by staff.
+model Redirect {
+  id        String    @id @default(cuid())
+  fromPath  String    @unique
+  toPath    String
+  permanent Boolean   @default(true)
+  hits      Int       @default(0)
+  lastHitAt DateTime?
+  note      String?
+  createdBy String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+/// Uploaded images, reusable across posts, pages and products.
+model Media {
+  id          String   @id @default(cuid())
+  url         String
+  storageKey  String?
+  fileName    String
+  contentType String
+  sizeBytes   Int
+  altText     String   @default("")
+  createdBy   String?
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
 }

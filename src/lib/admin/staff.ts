@@ -6,7 +6,7 @@ import { recordAudit } from "@/lib/audit";
 import { CommerceError, isUniqueViolation } from "@/lib/commerce/errors";
 import { hashPassword, passwordProblem, revokeSessions, verifyPassword, type SessionStaff } from "@/lib/admin/auth";
 
-const role = z.enum(["OWNER", "ADMIN", "FINANCE", "FULFILMENT", "CATALOGUE", "VIEWER"]);
+const role = z.enum(["OWNER", "ADMIN", "FINANCE", "FULFILMENT", "CATALOGUE", "EDITOR", "VIEWER"]);
 
 export const newStaffSchema = z.object({
   email: z.string().trim().toLowerCase().max(254).pipe(z.email()),

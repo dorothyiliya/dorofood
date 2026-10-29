@@ -12,6 +12,8 @@ const contentSecurityPolicy = [
   "font-src 'self'",
   "img-src 'self' data: https:",
   `connect-src 'self'${isDev ? " ws:" : ""}`,
+  // YouTube videos embedded in blog posts (privacy-enhanced mode only).
+  "frame-src https://www.youtube-nocookie.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",

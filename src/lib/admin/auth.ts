@@ -48,6 +48,8 @@ export const PERMISSIONS = [
   "settings.manage",    // store settings
   "staff.manage",       // staff accounts
   "jobs.run",           // run reconciliation now
+  "content.manage",     // blog posts, pages, media library, blog categories and tags
+  "seo.manage",         // search engine settings and redirects
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -57,7 +59,8 @@ export const ROLE_PERMISSIONS: Record<StaffRole, ReadonlySet<Permission>> = {
   ADMIN: ALL,
   FINANCE: new Set(["view", "orders.manage", "refunds.manage", "payments.manage", "jobs.run"]),
   FULFILMENT: new Set(["view", "orders.fulfil", "inventory.manage"]),
-  CATALOGUE: new Set(["view", "catalogue.manage", "inventory.manage"]),
+  CATALOGUE: new Set(["view", "catalogue.manage", "inventory.manage", "content.manage"]),
+  EDITOR: new Set(["view", "content.manage", "seo.manage"]),
   VIEWER: new Set(["view"]),
 };
 
@@ -66,7 +69,8 @@ export const ROLE_DESCRIPTIONS: Record<StaffRole, string> = {
   ADMIN: "Everything except managing owners.",
   FINANCE: "Payments, refunds, payment reviews, reconciliation.",
   FULFILMENT: "Shipping, dispatch, export review, stock.",
-  CATALOGUE: "Products, prices, categories, stock.",
+  CATALOGUE: "Products, prices, categories, stock, blog and pages.",
+  EDITOR: "Writes blog posts and pages, and looks after SEO.",
   VIEWER: "Read-only access to everything.",
 };
 

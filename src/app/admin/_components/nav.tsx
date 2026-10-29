@@ -2,7 +2,7 @@
 
 import { AdminLink as Link } from "@/app/admin/_components/admin-link";
 import { usePathname } from "next/navigation";
-import { ArrowCounterClockwise, ClockCounterClockwise, CreditCard, Gauge, Gear, GlobeHemisphereWest, Package, PlugsConnected, Pulse, Receipt, Tag, Users, Warehouse } from "@phosphor-icons/react/dist/ssr";
+import { ArrowCounterClockwise, ClockCounterClockwise, CreditCard, FileText, Gauge, Gear, GlobeHemisphereWest, Images, MagnifyingGlass, Package, PencilLine, PlugsConnected, Pulse, Receipt, Tag, Users, Warehouse } from "@phosphor-icons/react/dist/ssr";
 
 type NavLink = { href: string; label: string; Icon: typeof Gauge; exact?: boolean };
 
@@ -16,6 +16,15 @@ const GROUPS: { title: string | null; links: NavLink[] }[] = [
       { href: "/admin/catalogue", label: "Products", Icon: Package },
       { href: "/admin/categories", label: "Categories", Icon: Tag },
       { href: "/admin/inventory", label: "Stock", Icon: Warehouse },
+    ],
+  },
+  {
+    title: "Website",
+    links: [
+      { href: "/admin/blog", label: "Blog posts", Icon: PencilLine },
+      { href: "/admin/pages", label: "Pages", Icon: FileText },
+      { href: "/admin/media", label: "Picture library", Icon: Images },
+      { href: "/admin/seo", label: "SEO", Icon: MagnifyingGlass },
     ],
   },
   {

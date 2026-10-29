@@ -24,6 +24,9 @@ export type Product = {
   pack: { color: string; ink: string };
   icon: CategoryIcon;
   origin: string;
+  /** Search engine listing set in the admin; empty means use the name and description. */
+  seoTitle?: string;
+  seoDescription?: string;
   /** Market codes this product can be delivered to. */
   shipsTo: string[];
   available: boolean;
